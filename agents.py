@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pydantic import Field
 from typing import Annotated, Unpack,List, Tuple, TypedDict, Type, TypeVar
 from dspy import InputField, OutputField
+import data_types as types
 
 
 
@@ -90,19 +91,6 @@ class AnalysisPlanning(dspy.Signature):
 class ScenarioArgs(TypedDict):
     scenario: str
 
-
-V = TypeVar('V')
-class GradingArgs[V](TypedDict):
-    criteria: List[str]
-    input: V
-
-class TotalScore(pydantic.BaseModel):
-    total_score: float = pydantic.Field(default=0.0, description="The total score between 0.0 and 1.0",ge=0.0, le=1.0,decimal_places=2)
-
-def make_rubric()
-class Score(pydantic.BaseModel):
-    score: float = pydantic.Field(default=0.0, description="The score between 0.0 and 1.0",ge=0.0, le=1.0,decimal_places=2)
-
 GRADER_PROMPT_1 = """
 System:
   You are an expert medical grader. Compare the **Reference Answer** to the **Model's Answer** and produce **only** a JSON object with:
@@ -121,13 +109,8 @@ System:
   • In your **steps**, show which rule you applied and the running subtotal.
 """
 
-class Rubric(pydantic.BaseModel):
-    ge: float = pydantic.Field(default=0.0, description="The minimum score", ge=0.0)
-    le: float = pydantic.Field(default=1.0, description="The maximum score", ge=0.0)
-    desc: str = pydantic.Field(default="", description="The description of the metric")
-
 def make_ordered_score_tuple(
-    rubrics: list[Rubric]
+    rubrics: list[types.Rubric]
 ) -> Type[tuple]:
 
     # 1) Build each Annotated float type
@@ -137,24 +120,16 @@ def make_ordered_score_tuple(
     )
     # 2) Dynamically subscribe Tuple[...] to that tuple of types
     return type(types)
-"""
-R = make_ordered_score_tuple([Rubric(desc="ropeproject", ge=0, le=10),
-                             Rubric(desc="ropeproject", ge=20, le=30)])
-"""
-
-class Criteria(pydantic.BaseModel):
-    rubrics: List[Rubric] = InputField(description=f"The rubrics used for grading the content")
-    max_total_score: float = pydantic.Field(default=0.0, le=1.0, description="The sum of the rubric scores, but that must not exceed the maximum score")
 
 
 class SemanticSignature[V](dspy.Signature):
-    criteria: Criteria = InputField(description=f"The criteria for grading")
+    criteria: types.Criteria = InputField(description=f"The criteria for grading")
     input: V = InputField(description="The input to be graded")
     score: int = OutputField(description="The score of how the input meets the criteria")
 
 T = TypeVar('T')
 class GradingInput[T](TypedDict):
-    criteria: Criteria
+    criteria: types.Criteria
     input: T
 
 C = TypeVar('C')
