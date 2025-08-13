@@ -19,5 +19,5 @@ def run_parallel(module: types.ForwardModule[types.T, types.R],
         # thread-safe because they write to different areas of memory
         for fut in as_completed(futures):
             idx = futures[fut]
-            results[idx] = fut.result()
+            results[idx] = module.get_value(fut.result())
     return types.ResponseData(data=results)

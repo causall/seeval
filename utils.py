@@ -3,6 +3,7 @@ from typing import Type, List, TypeVar
 import data_types as types
 import json
 import dspy
+from typing import Callable
 
 # create a decorator so we an add formatted instructions to signatures
 def instructions(**kwargs):
@@ -41,7 +42,14 @@ def load_from(path:str, LoadingType: Type[LT], prefix: str | None= None)->List[L
         for line in f:
             result = json.loads(line)
             if prefix is not None:
-                results.append(LoadingType.model_validate_json(result.get(prefix, {})))
+                results.append(LoadingType.model_validate(result.get(prefix, {})))
             else:
-                results.append(LoadingType.model_validate_json(result))
+                results.append(LoadingType.model_validate(result))
     return results
+
+VV = TypeVar('VV', bound='pydantic.BaseModel')
+
+def write_results_from_response(path:str, results: types.ResponseData[LT]):
+    with open(path, 'w') as f:
+        for result in get_values(results.data):
+            f.write(json.dumps({'item': result.model_dump()}) + '\n')

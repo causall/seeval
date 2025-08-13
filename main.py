@@ -26,6 +26,8 @@ lm = dspy.LM(
 
 scenarios = utils.load_from("./scenarios.jsonl", agents.ScenarioArgs)
 results = run_parallel(agents.InterviewGenerationModule(),scenarios, lm, 20)
+utils.write_results_from_response('./results.jsonl',results)
+
 rubrics = [
     types.Rubric(ge=0.0,le=0.30,desc="Plan overview is consistent with the entities and relationships"),
     types.Rubric(ge=0.0,le=0.25,desc="Relationships make logical sense with the scenario"),
@@ -42,7 +44,7 @@ criteria =types.Criteria(rubrics=rubrics,max_total_score=1)
 # grading_inputs = agent_util.make_grading_inputs(criteria,input_data)
 
 results = utils.load_from_result('./results.jsonl', agents.AnalysisPlanningResult)
-input_data=list(map(lambda val: val.analysis_plan, results))
+input_data=list(map(lambda val: val, results))
 
 grading_inputs = agent_util.make_grading_inputs(criteria,input_data)
 grades = run_parallel(agents.GraderGenerationModule(),grading_inputs, lm, 20)
@@ -54,11 +56,11 @@ grades = run_parallel(agents.GraderGenerationModule(),grading_inputs, lm, 20)
 # validate trained model on expected results
 
 
-
+"""
 with open("./results.jsonl", 'w') as f:
     for value in get_values(results.data):
         f.write(json.dumps({"item": value.analysis_plan.model_dump()}) + "\n")
-
+"""
 import pdb
 pdb.set_trace()
-print(results)
+print(grades)

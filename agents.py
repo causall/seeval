@@ -80,15 +80,15 @@ class InterviewAnalysis(dspy.Signature):
     analysis_plan: MetaAnalysis = OutputField(description='The analysis plan')
     # analysis_plan = generate_json_output_field(MetaAnalysis)
 
-class AnalysisPlanningResult(pydantic.BaseModel):
-    analysis_plan: MetaAnalysis
+class AnalysisPlanningResult(MetaAnalysis):
+    ...
 
 class AnalysisPlanning(dspy.Signature):
     scenario = InputField(
         decription="The tokenomic or economic scenario to analyze")
     analysis_plan: MetaAnalysis = OutputField(description='The analysis plan')
 
-class ScenarioArgs(TypedDict):
+class ScenarioArgs(pydantic.BaseModel):
     scenario: str
 
 GRADER_PROMPT_1 = """
@@ -123,7 +123,7 @@ def make_ordered_score_tuple(
 
 
 class SemanticSignature[V](dspy.Signature):
-    criteria: types.Criteria = InputField(description=f"The criteria for grading")
+    criteria: types.Criteria = InputField(description="The criteria for grading")
     input: V = InputField(description="The input to be graded")
     score: int = OutputField(description="The score of how the input meets the criteria")
 
@@ -144,12 +144,18 @@ class GraderGenerationModule[C](dspy.Module):
     def forward(self, input: GradingInput[T]) -> GradingResult:
         return self.grader(**input)
 
+    def get_value(self, prediction: dspy.Prediction) -> GradingResult:
+        return prediction.score
+
 class InterviewGenerationModule(dspy.Module):
     def __init__(self):
         self.analysis_plan = dspy.ChainOfThought(AnalysisPlanning)
 
     def forward(self, scenario: ScenarioArgs)->AnalysisPlanningResult:
-        return self.analysis_plan(**scenario)
+        return self.analysis_plan(**scenario.model_dump())
+
+    def get_value(self, prediction: dspy.Prediction)->AnalysisPlanningResult:
+        return prediction.analysis_plan
 
 class SeeValStats(pydantic.BaseModel):
     histogram: List[List[int]] = pydantic.Field(default_factory=list, description="The histogram of the data")

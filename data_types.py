@@ -10,6 +10,8 @@ R = TypeVar('R', bound=pydantic.BaseModel)
 class ForwardModule(Protocol[T, R]):
     def forward(self, params: T, /)-> R:
         ...
+    def get_value(self, prediction: dspy.Prediction)-> R:
+        ...
 
 class ResponseData(pydantic.BaseModel, Generic[T]):
     data: List[Optional[T]]
