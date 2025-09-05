@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>JSONL Evals — Criteria-Based Grading</title>
+    <style>
+      :root {
+        --bg: #0b0c0f; /* deep slate */
+        --panel: #14161b;
+        --muted: #8b93a7;
+        --text: #e9ecf1;
+        --accent: #6ee7b7; /* mint */
+        --accent-2: #93c5fd; /* blue */
+        --danger: #fca5a5;
+        --warning: #fde68a;
+        --card: #0f1217;
+        --border: #21242c;
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        --radius: 16px;
+        --radius-sm: 12px;
+        --radius-xs: 10px;
+        --pad: 14px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu,
+          Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji",
+          "Segoe UI Emoji";
+        color: var(--text);
+        background: radial-gradient(
+            1200px 800px at 70% -10%,
+            #1a1f2a 0%,
+            var(--bg) 40%
+          ),
+          var(--bg);
+      }
+      a {
+        color: var(--accent-2);
+        text-decoration: none;
+      }
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        backdrop-filter: blur(10px);
+        background: linear-gradient(
+          180deg,
+          rgba(20, 22, 27, 0.85),
+          rgba(20, 22, 27, 0.65)
+        );
+        border-bottom: 1px solid var(--border);
+      }
+      .wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 18px 18px;
+      }
+      .row {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .spacer {
+        flex: 1;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        border: 1px solid var(--border);
+        background: linear-gradient(180deg, #1a1e27, #12151c);
+        color: var(--text);
+        border-radius: var(--radius-xs);
+        padding: 10px 12px;
+        box-shadow: var(--shadow);
+        transition: transform 0.08s ease, border-color 0.2s ease,
+          box-shadow 0.2s ease, background 0.2s ease;
+        font-size: 14px;
+        font-weight: 500;
+        text-decoration: none;
+        user-select: none;
+        white-space: nowrap;
+      }
+      .btn:hover {
+        transform: translateY(-1px);
+        border-color: var(--accent);
+        box-shadow: 0 12px 35px rgba(0, 0, 0, 0.45);
+      }
+      .btn:active {
+        transform: translateY(0);
+      }
+      .btn.primary {
+        background: linear-gradient(180deg, var(--accent), #4ade80);
+        color: #0f1419;
+        border-color: var(--accent);
+      }
+      .btn.ghost {
+        background: transparent;
+        border-color: transparent;
+        box-shadow: none;
+      }
+      .btn.ghost:hover {
+        background: var(--panel);
+        border-color: var(--border);
+        transform: none;
+        box-shadow: var(--shadow);
+      }
+      .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        transform: none;
+      }
+      .btn:disabled:hover {
+        transform: none;
+        border-color: var(--border);
+        box-shadow: var(--shadow);
+      }
+
+      .input {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: var(--radius-xs);
+        padding: 10px 12px;
+        font-size: 14px;
+        transition: border-color 0.2s ease;
+        outline: none;
+        width: 100%;
+      }
+      .input:focus {
+        border-color: var(--accent);
+      }
+      .input::placeholder {
+        color: var(--muted);
+      }
+
+      select.input {
+        cursor: pointer;
+      }
+
+      .card {
+        background: linear-gradient(180deg, var(--card), #0a0d12);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      .card .head {
+        background: linear-gradient(180deg, #181c25, #0f1217);
+        padding: var(--pad);
+        border-bottom: 1px solid var(--border);
+        font-weight: 600;
+        font-size: 15px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .card .body {
+        padding: var(--pad);
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .stack.tight {
+        gap: 8px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 20px;
+        align-items: start;
+      }
+
+      .small {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .badge {
+        background: linear-gradient(180deg, var(--accent), #4ade80);
+        color: #0f1419;
+        font-weight: 600;
+        font-size: 13px;
+        padding: 6px 10px;
+        border-radius: var(--radius-xs);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .kbar {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      .k {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        padding: 4px 6px;
+        border-radius: 6px;
+        font-family: ui-monospace, "SF Mono", Monaco, Consolas, monospace;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .toolbar {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .group {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .progress {
+        height: 6px;
+        background: var(--panel);
+        border-radius: 3px;
+        overflow: hidden;
+        margin: 0 0 16px;
+      }
+      .progress span {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), #4ade80);
+        transition: width 0.3s ease;
+        border-radius: 3px;
+      }
+
+      .item-preview {
+        background: #0a0d11;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xs);
+        padding: var(--pad);
+        font-family: ui-monospace, "SF Mono", Monaco, Consolas, monospace;
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--text);
+        white-space: pre;
+        overflow: auto;
+        max-height: 400px;
+        resize: vertical;
+        margin: 0;
+      }
+
+      .pill {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+
+      .footer {
+        text-align: center;
+        padding: 40px 20px;
+        border-top: 1px solid var(--border);
+        margin-top: 40px;
+      }
+
+      .tab {
+        background: transparent;
+        border: none;
+        color: var(--muted);
+        padding: 10px 16px;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s ease;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .tab:hover {
+        color: var(--text);
+      }
+      .tab.active {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+      }
+      .tabs {
+        display: flex;
+        gap: 0;
+        border-bottom: 1px solid var(--border);
+        margin: 20px 0 0;
+      }
+
+      #tab-content {
+        margin-top: 20px;
+      }
+
+      .overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.8);
+        backdrop-filter: blur(4px);
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .overlay[hidden] {
+        display: none;
+      }
+      .overlay .panel {
+        width: min(1000px, 92vw);
+        height: min(85vh, 92vh);
+        background: linear-gradient(180deg, #12151c, #0e1116);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        display: grid;
+        grid-template-rows: auto 1fr;
+        overflow: hidden;
+      }
+      .overlay .panel .head {
+        border-bottom: 1px solid var(--border);
+      }
+      .overlay pre {
+        margin: 0;
+        padding: var(--pad);
+        background: #0a0d11;
+        overflow: auto;
+      }
+      .wrap-text {
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .rubric-item {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xs);
+        padding: 12px;
+        margin: 8px 0;
+      }
+
+      .rubric-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .rubric-desc {
+        font-size: 13px;
+        color: var(--text);
+        margin-bottom: 8px;
+        line-height: 1.4;
+      }
+
+      .rubric-input {
+        width: 80px;
+        text-align: center;
+      }
+
+      .rubric-range {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .total-score {
+        background: var(--accent);
+        color: #0f1419;
+        padding: 12px;
+        border-radius: var(--radius-xs);
+        font-weight: 600;
+        text-align: center;
+        margin-top: 16px;
+      }
+
+      .criteria-summary {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xs);
+        padding: 12px;
+        margin-bottom: 16px;
+      }
+
+      .warning {
+        background: var(--warning);
+        color: #0f1419;
+        padding: 8px 12px;
+        border-radius: var(--radius-xs);
+        font-size: 13px;
+        margin-bottom: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap row">
+        <div class="row" style="gap: 10px; align-items: center">
+          <div class="badge">JSONL Evals</div>
+          <span class="small">Criteria-based grading from JSONL</span>
+        </div>
+        <div class="spacer"></div>
+        <div class="kbar small">
+          <span class="k">J / K</span> next/prev <span class="k">Tab</span> next
+          rubric <span class="k">N</span> focus notes
+          <span class="k">⌘/Ctrl + S</span> export
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap grid" id="app" hidden>
+      <!-- Left: Evaluate -->
+      <section class="stack">
+        <div class="card">
+          <div class="head">
+            <div>Dataset</div>
+            <div id="fileMeta" class="small"></div>
+          </div>
+          <div class="body stack">
+            <div class="toolbar">
+              <div class="group">
+                <button class="btn ghost" id="prevBtn">◀ Prev (K)</button>
+                <button class="btn primary" id="nextBtn">Next (J) ▶</button>
+              </div>
+              <div class="spacer"></div>
+              <div class="group">
+                <button class="btn" id="exportBtn">
+                  Export JSONL (⌘/Ctrl+S)
+                </button>
+                <button class="btn" id="clearBtn">Clear Progress</button>
+              </div>
+            </div>
+
+            <div class="progress">
+              <span id="progressFill"></span>
+            </div>
+            <div class="row" style="align-items: flex-start; gap: 16px">
+              <div class="card" style="flex: 2">
+                <div class="head">Item <span id="idxLabel"></span></div>
+                <div class="body stack">
+                  <div id="previewTools" class="toolbar small">
+                    <button class="btn ghost" id="expandBtn">Expand (Z)</button>
+                    <button class="btn ghost" id="wrapToggle">Wrap</button>
+                    <button class="btn ghost" id="copyBtnSmall">Copy</button>
+                  </div>
+                  <pre id="itemPreview" class="item-preview"></pre>
+                  <textarea
+                    id="notes"
+                    class="input"
+                    placeholder="Notes for this item… (N to focus)"
+                  ></textarea>
+                </div>
+              </div>
+              <div class="card" style="flex: 1">
+                <div class="head">Criteria-Based Evaluation</div>
+                <div class="body stack" id="evalPanel">
+                  <!-- dynamic rubric controls -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <button class="tab active" data-tab="stats">Statistics</button>
+          <button class="tab" data-tab="sessions">Sessions</button>
+        </div>
+
+        <div id="tab-content">
+          <div class="card" data-view="stats">
+            <div class="head">Overview</div>
+            <div class="body stack" id="stats"></div>
+          </div>
+
+          <div class="card" data-view="sessions" hidden>
+            <div class="head">Saved Sessions</div>
+            <div class="body stack" id="sessions"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right: Loader & Config -->
+      <aside class="stack">
+        <div class="card">
+          <div class="head">Load / Resume</div>
+          <div class="body stack">
+            <input
+              type="file"
+              id="fileInput"
+              class="input"
+              accept=".jsonl,.txt,.json"
+            />
+            <button class="btn" id="loadDemo">Load Demo</button>
+            <div class="small">
+              Local‑only. Progress auto‑saves to your browser storage keyed by a
+              hash of file contents. Loads criteria from JSONL.
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="head">Current Criteria</div>
+          <div class="body stack small" id="criteriaInfo"></div>
+        </div>
+
+        <div class="card">
+          <div class="head">Session</div>
+          <div class="body stack small" id="sessionInfo"></div>
+        </div>
+
+        <div class="card">
+          <div class="head">Help</div>
+          <div class="body stack small">
+            <div>• Use Tab to navigate between rubric inputs</div>
+            <div>• Navigation: <em>J</em> next, <em>K</em> prev</div>
+            <div>• <em>N</em> to focus notes</div>
+            <div>• Export anytime; file is re‑importable</div>
+            <div>• Criteria are extracted from JSONL automatically</div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Fullscreen overlay for large JSON preview -->
+    <div id="overlay" class="overlay" hidden>
+      <div class="panel">
+        <div class="head row">
+          <div>Full Item View</div>
+          <div class="spacer"></div>
+          <button class="btn ghost" id="wrapToggleFull">Wrap (W)</button>
+          <button class="btn ghost" id="copyBtnFull">Copy</button>
+          <button class="btn primary" id="closeOverlay">Close (Esc)</button>
+        </div>
+        <pre
+          id="overlayPre"
+          class="item-preview"
+          style="height: 100%; max-height: none; resize: none"
+        ></pre>
+      </div>
+    </div>
+
+    <section class="wrap" id="welcome">
+      <div class="card" style="max-width: 820px; margin: 30px auto 40px">
+        <div class="head">Welcome</div>
+        <div class="body stack">
+          <p>
+            Import a <strong>.jsonl</strong> file to begin evaluating. Each line
+            should contain a JSON object with <code>item</code> and
+            <code>criteria</code> fields. The criteria will define the rubrics
+            for scoring. Your scores and notes are stored locally and can be
+            exported back to JSONL.
+          </p>
+          <div class="row" style="gap: 10px; align-items: center">
+            <input
+              type="file"
+              id="fileInput2"
+              class="input"
+              accept=".jsonl,.txt,.json"
+            />
+            <button class="btn" id="loadDemo2">Try a demo file</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer small">
+      Designed to be simple (not complex). No dependencies, runs offline in your
+      browser.
+    </footer>
+
+    <script>
+      // ——— util ———
+      const $ = (sel) => document.querySelector(sel);
+      const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+      function fmtPct(n) {
+        return (n * 100).toFixed(1) + "%";
+      }
+
+      async function sha256(text) {
+        const buf = await crypto.subtle.digest(
+          "SHA-256",
+          new TextEncoder().encode(text)
+        );
+        return Array.from(new Uint8Array(buf))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+      }
+
+      function download(filename, text) {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+
+      function isPlainObject(v) {
+        return (
+          v &&
+          typeof v === "object" &&
+          !Array.isArray(v) &&
+          v.constructor === Object
+        );
+      }
+
+      function jsonlParse(text) {
+        const lines = text.split(/\r?\n/).filter((l) => l.trim().length);
+        const out = [];
+        const errors = [];
+        lines.forEach((l, i) => {
+          try {
+            out.push(JSON.parse(l));
+          } catch (e) {
+            errors.push({
+              line: i + 1,
+              error: "" + e,
+              sample: l.slice(0, 200),
+            });
+          }
+        });
+        return { items: out, errors, total: lines.length };
+      }
+
+      function toJSONL(items) {
+        return items.map((o) => JSON.stringify(o)).join("\n");
+      }
+
+      function clamp(n, min, max) {
+        return Math.max(min, Math.min(max, n));
+      }
+
+      function currentJSONText() {
+        const o = state.items[state.idx] || {};
+        return JSON.stringify(o, null, 2);
+      }
+
+      let wrapLines = false;
+      function applyWrap() {
+        $$(".item-preview").forEach((el) => {
+          if (wrapLines) el.classList.add("wrap-text");
+          else el.classList.remove("wrap-text");
+        });
+        $("#wrapToggle").textContent = wrapLines ? "Unwrap" : "Wrap";
+        $("#wrapToggleFull").textContent = wrapLines ? "Unwrap" : "Wrap";
+      }
+
+      function openOverlay() {
+        const el = $("#overlay");
+        if (el) {
+          el.hidden = false;
+          $("#overlayPre").textContent = currentJSONText();
+          applyWrap();
+        }
+      }
+      function closeOverlay() {
+        const el = $("#overlay");
+        if (el) el.hidden = true;
+      }
+      function isOverlayOpen() {
+        const el = $("#overlay");
+        return el && !el.hidden;
+      }
+
+      // ——— state ———
+      const state = {
+        rawText: "",
+        items: [],
+        criteria: [], // Array of criteria objects, one per item
+        evals: [], // Array of rubric scores: {rubric_0: score, rubric_1: score, ..., note: string}
+        idx: 0,
+        key: null,
+        filename: null,
+      };
+
+      function storageKey(hash) {
+        return `jsonl-evals-criteria:${hash}`;
+      }
+
+      function save() {
+        if (!state.key) return;
+        const data = {
+          evals: state.evals,
+          idx: state.idx,
+          filename: state.filename,
+          criteria: state.criteria,
+        };
+        localStorage.setItem(state.key, JSON.stringify(data));
+        renderSessionInfo();
+      }
+
+      function loadIfExists(hash) {
+        const key = storageKey(hash);
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        try {
+          return { key, ...JSON.parse(raw) };
+        } catch {
+          return null;
+        }
+      }
+
+      function listSessions() {
+        return Object.keys(localStorage)
+          .filter((k) => k.startsWith("jsonl-evals-criteria:"))
+          .map((k) => {
+            try {
+              const v = JSON.parse(localStorage.getItem(k));
+              return { key: k, ...v };
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean);
+      }
+
+      // ——— init / load ———
+      async function loadTextAsDataset(text, filename = "dataset.jsonl") {
+        const parsed = jsonlParse(text);
+
+        const processedItems = [];
+        const processedCriteria = [];
+        const processedEvals = [];
+
+        let hashInput = "";
+
+        // Process each item to extract item, criteria, and existing evals
+        for (let i = 0; i < parsed.items.length; i++) {
+          const obj = parsed.items[i];
+          let itemValue,
+            criteriaValue = null,
+            seevalValue = {};
+
+          // Check if object has item and criteria fields
+          if (isPlainObject(obj) && "item" in obj) {
+            itemValue = obj.item;
+            criteriaValue = obj.criteria || null;
+
+            // Extract existing seeval if it exists
+            if (obj.seeval) {
+              seevalValue = { ...obj.seeval };
+            }
+          } else {
+            // Not in expected format, use whole object as item
+            itemValue = obj;
+          }
+
+          processedItems.push(itemValue);
+          processedCriteria.push(criteriaValue);
+
+          // Initialize eval structure based on criteria
+          if (criteriaValue && criteriaValue.rubrics) {
+            const evalObj = { note: seevalValue.note || "" };
+            criteriaValue.rubrics.forEach((rubric, idx) => {
+              evalObj[`rubric_${idx}`] = seevalValue[`rubric_${idx}`] || null;
+            });
+            processedEvals.push(evalObj);
+          } else {
+            processedEvals.push({ note: seevalValue.note || "" });
+          }
+
+          hashInput += JSON.stringify(itemValue);
+        }
+
+        const hash = await sha256(hashInput);
+
+        state.rawText = text;
+        state.items = processedItems;
+        state.criteria = processedCriteria;
+        state.filename = filename;
+        state.evals = processedEvals;
+        state.idx = 0;
+        state.key = storageKey(hash);
+
+        const existing = loadIfExists(hash);
+        if (existing) {
+          state.key = existing.key;
+          state.evals =
+            existing.evals?.length === state.items.length
+              ? existing.evals
+              : state.evals;
+          state.idx = clamp(existing.idx || 0, 0, state.items.length - 1);
+          // Restore criteria if available
+          if (
+            existing.criteria &&
+            existing.criteria.length === state.criteria.length
+          ) {
+            state.criteria = existing.criteria;
+          }
+        }
+
+        $(
+          "#fileMeta"
+        ).textContent = `${filename} • ${state.items.length} items • ${parsed.errors.length} parse errors`;
+        $("#app").hidden = false;
+        $("#welcome").hidden = true;
+        renderAll();
+        save();
+        if (parsed.errors.length)
+          alert(
+            `${parsed.errors.length} line(s) failed to parse. See console for details.`
+          ),
+            console.warn(parsed.errors);
+      }
+
+      async function loadFile(file) {
+        const text = await file.text();
+        await loadTextAsDataset(text, file.name);
+      }
+
+      // ——— rendering ———
+      function renderAll() {
+        renderItem();
+        renderNav();
+        renderEvalPanel();
+        renderStats();
+        renderSessions();
+        renderSessionInfo();
+        renderCriteriaInfo();
+      }
+
+      function renderItem() {
+        const i = state.idx;
+        const o = state.items[i] || {};
+        const ev = state.evals[i] || { note: "" };
+        $("#idxLabel").textContent = `${i + 1} / ${state.items.length}`;
+
+        $("#itemPreview").textContent = JSON.stringify(o, null, 2);
+        $("#notes").value = ev.note || "";
+        $("#notes").onchange = (e) => {
+          if (!state.evals[i]) state.evals[i] = { note: "" };
+          state.evals[i].note = e.target.value;
+          save();
+        };
+
+        const done = countCompletedEvals();
+        const pct = state.items.length ? done / state.items.length : 0;
+        $("#progressFill").style.width = fmtPct(pct);
+        $("#nextBtn").disabled = state.idx >= state.items.length - 1;
+        $("#prevBtn").disabled = state.idx <= 0;
+      }
+
+      function countCompletedEvals() {
+        return state.evals.filter((evalObj) => {
+          if (!evalObj) return false;
+          const criteria = state.criteria[state.evals.indexOf(evalObj)];
+          if (!criteria || !criteria.rubrics) return false;
+
+          // Check if all rubrics have scores
+          return criteria.rubrics.every(
+            (_, idx) =>
+              evalObj[`rubric_${idx}`] !== null &&
+              evalObj[`rubric_${idx}`] !== undefined
+          );
+        }).length;
+      }
+
+      function setRubricScore(rubricIdx, value) {
+        const i = state.idx;
+        if (!state.evals[i]) {
+          state.evals[i] = { note: "" };
+        }
+
+        const criteria = state.criteria[i];
+        if (!criteria || !criteria.rubrics || !criteria.rubrics[rubricIdx]) {
+          return;
+        }
+
+        const rubric = criteria.rubrics[rubricIdx];
+        const clampedValue = clamp(Number(value), rubric.ge, rubric.le);
+        state.evals[i][`rubric_${rubricIdx}`] = clampedValue;
+
+        renderEvalPanel();
+        renderStats();
+        renderNav();
+        save();
+      }
+
+      function getCurrentTotalScore() {
+        const i = state.idx;
+        const evalObj = state.evals[i];
+        const criteria = state.criteria[i];
+
+        if (!evalObj || !criteria || !criteria.rubrics) return null;
+
+        let total = 0;
+        let hasAllScores = true;
+
+        criteria.rubrics.forEach((_, idx) => {
+          const score = evalObj[`rubric_${idx}`];
+          if (score === null || score === undefined) {
+            hasAllScores = false;
+          } else {
+            total += Number(score);
+          }
+        });
+
+        return hasAllScores ? total : null;
+      }
+
+      function renderEvalPanel() {
+        const wrap = $("#evalPanel");
+        wrap.innerHTML = "";
+
+        const i = state.idx;
+        const criteria = state.criteria[i];
+        const evalObj = state.evals[i] || { note: "" };
+
+        if (!criteria || !criteria.rubrics) {
+          wrap.innerHTML =
+            '<div class="warning">No criteria found for this item</div>';
+          return;
+        }
+
+        // Create rubric inputs
+        criteria.rubrics.forEach((rubric, idx) => {
+          const rubricDiv = document.createElement("div");
+          rubricDiv.className = "rubric-item";
+
+          const currentScore = evalObj[`rubric_${idx}`];
+
+          rubricDiv.innerHTML = `
+                        <div class="rubric-header">
+                            <span class="rubric-range">${rubric.ge} - ${
+            rubric.le
+          } pts</span>
+                            <input 
+                                type="number" 
+                                class="input rubric-input" 
+                                min="${rubric.ge}" 
+                                max="${rubric.le}" 
+                                step="0.1"
+                                value="${
+                                  currentScore !== null &&
+                                  currentScore !== undefined
+                                    ? currentScore
+                                    : ""
+                                }"
+                                placeholder="Score"
+                                data-rubric-idx="${idx}"
+                            />
+                        </div>
+                        <div class="rubric-desc">${rubric.desc}</div>
+                    `;
+
+          const input = rubricDiv.querySelector("input");
+          input.onchange = (e) => setRubricScore(idx, e.target.value);
+          input.onkeydown = (e) => {
+            if (e.key === "Tab") {
+              e.preventDefault();
+              const nextIdx = (idx + 1) % criteria.rubrics.length;
+              const nextInput = wrap.querySelector(
+                `[data-rubric-idx="${nextIdx}"]`
+              );
+              if (nextInput) nextInput.focus();
+            }
+          };
+
+          wrap.appendChild(rubricDiv);
+        });
+
+        // Total score display
+        const totalScore = getCurrentTotalScore();
+        const maxScore = criteria.max_total_score || 0;
+
+        const totalDiv = document.createElement("div");
+        totalDiv.className = "total-score";
+        totalDiv.innerHTML = `
+                    Total: ${
+                      totalScore !== null ? totalScore.toFixed(1) : "—"
+                    } / ${maxScore}
+                    ${
+                      totalScore !== null
+                        ? `(${fmtPct(totalScore / maxScore)})`
+                        : ""
+                    }
+                `;
+        wrap.appendChild(totalDiv);
+      }
+
+      function renderCriteriaInfo() {
+        const box = $("#criteriaInfo");
+        box.innerHTML = "";
+
+        const i = state.idx;
+        const criteria = state.criteria[i];
+
+        if (!criteria || !criteria.rubrics) {
+          box.innerHTML = '<div class="small">No criteria available</div>';
+          return;
+        }
+
+        const summary = document.createElement("div");
+        summary.className = "criteria-summary";
+        summary.innerHTML = `
+                    <div><strong>Rubrics:</strong> ${
+                      criteria.rubrics.length
+                    }</div>
+                    <div><strong>Max Score:</strong> ${
+                      criteria.max_total_score || 0
+                    }</div>
+                `;
+        box.appendChild(summary);
+
+        criteria.rubrics.forEach((rubric, idx) => {
+          const rubricDiv = document.createElement("div");
+          rubricDiv.className = "small";
+          rubricDiv.innerHTML = `
+                        <strong>${idx + 1}.</strong> ${rubric.desc} 
+                        <span class="pill">${rubric.ge}-${rubric.le}</span>
+                    `;
+          box.appendChild(rubricDiv);
+        });
+      }
+
+      function field(label, html) {
+        const div = document.createElement("div");
+        div.className = "stack";
+        div.innerHTML = `<div class="small" style="color:var(--muted)">${label}</div>${html}`;
+        return div;
+      }
+
+      function btn(text, onClick, cls = "") {
+        const b = document.createElement("button");
+        b.className = "btn " + cls;
+        b.textContent = text;
+        b.onclick = onClick;
+        return b;
+      }
+
+      function renderStats() {
+        const box = $("#stats");
+        box.innerHTML = "";
+        const N = state.items.length;
+        const done = countCompletedEvals();
+
+        // Overall stats
+        box.appendChild(
+          field(
+            "Progress",
+            `<div class="pill">Completed: <strong>${done} / ${N}</strong> (${fmtPct(
+              done / N || 0
+            )})</div>`
+          )
+        );
+
+        if (done === 0) return;
+
+        // Calculate rubric-level statistics
+        const rubricStats = {};
+        const totalScores = [];
+
+        state.evals.forEach((evalObj, itemIdx) => {
+          if (!evalObj) return;
+          const criteria = state.criteria[itemIdx];
+          if (!criteria || !criteria.rubrics) return;
+
+          let itemTotal = 0;
+          let itemComplete = true;
+
+          criteria.rubrics.forEach((rubric, rubricIdx) => {
+            const score = evalObj[`rubric_${rubricIdx}`];
+            if (score !== null && score !== undefined) {
+              if (!rubricStats[rubricIdx]) {
+                rubricStats[rubricIdx] = {
+                  scores: [],
+                  desc: rubric.desc,
+                  range: `${rubric.ge}-${rubric.le}`,
+                };
+              }
+              rubricStats[rubricIdx].scores.push(Number(score));
+              itemTotal += Number(score);
+            } else {
+              itemComplete = false;
+            }
+          });
+
+          if (itemComplete) {
+            totalScores.push(itemTotal);
+          }
+        });
+
+        // Display rubric averages
+        Object.entries(rubricStats).forEach(([rubricIdx, stats]) => {
+          if (stats.scores.length > 0) {
+            const avg =
+              stats.scores.reduce((a, b) => a + b, 0) / stats.scores.length;
+            box.appendChild(
+              field(
+                `Rubric ${parseInt(rubricIdx) + 1} (${stats.range})`,
+                `<div class="small">${stats.desc}</div>
+                             <div class="pill">Average: <strong>${avg.toFixed(
+                               2
+                             )}</strong></div>`
+              )
+            );
+          }
+        });
+
+        // Total score stats
+        if (totalScores.length > 0) {
+          const avgTotal =
+            totalScores.reduce((a, b) => a + b, 0) / totalScores.length;
+          const maxPossible = state.criteria[0]?.max_total_score || 0;
+          box.appendChild(
+            field(
+              "Total Scores",
+              `<div class="pill">Average: <strong>${avgTotal.toFixed(
+                2
+              )} / ${maxPossible}</strong> (${fmtPct(
+                avgTotal / maxPossible || 0
+              )})</div>`
+            )
+          );
+        }
+      }
+
+      function renderSessions() {
+        const box = $("#sessions");
+        box.innerHTML = "";
+        const sessions = listSessions();
+        if (!sessions.length) {
+          box.innerHTML = '<div class="small">No saved sessions</div>';
+          return;
+        }
+        sessions.forEach((s) => {
+          const div = document.createElement("div");
+          div.className = "stack tight";
+          div.innerHTML = `
+                        <div><strong>${s.filename || "Untitled"}</strong></div>
+                        <div class="small">Item ${s.idx + 1} of ${
+            s.evals?.length || 0
+          }</div>
+                        <div class="small" style="word-break:break-all"><strong>Key:</strong> ${
+                          s.key
+                        }</div>
+                    `;
+          box.appendChild(div);
+        });
+      }
+
+      function renderSessionInfo() {
+        const box = $("#sessionInfo");
+        if (!state.key) {
+          box.innerHTML = '<div class="small">No active session</div>';
+          return;
+        }
+        const s = {
+          idx: state.idx + 1,
+          total: state.items.length,
+          key: state.key,
+          filename: state.filename,
+        };
+        box.innerHTML = `
+                    <div><strong>File:</strong> ${
+                      s.filename || "Untitled"
+                    }</div>
+                    <div><strong>Position:</strong> ${s.idx} / ${s.total}</div>
+                    <div class="small" style="word-break:break-all"><strong>Key:</strong> ${
+                      s.key
+                    }</div>
+                `;
+      }
+
+      // ——— actions ———
+      function next() {
+        state.idx = clamp(state.idx + 1, 0, state.items.length - 1);
+        renderAll();
+        save();
+      }
+      function prev() {
+        state.idx = clamp(state.idx - 1, 0, state.items.length - 1);
+        renderAll();
+        save();
+      }
+
+      async function exportJSONL() {
+        // Export using canonical format with rubric scores
+        const merged = state.items.map((item, i) => {
+          const evalObj = state.evals[i] || {};
+          const criteria = state.criteria[i];
+
+          const result = {
+            item: item,
+            criteria: criteria,
+          };
+
+          // Check if there are any scores or notes to include
+          const hasScores =
+            criteria &&
+            criteria.rubrics &&
+            criteria.rubrics.some(
+              (_, idx) =>
+                evalObj[`rubric_${idx}`] !== null &&
+                evalObj[`rubric_${idx}`] !== undefined
+            );
+          const hasNote = evalObj.note && evalObj.note.trim() !== "";
+
+          if (hasScores || hasNote) {
+            const seevalObj = { note: evalObj.note || "" };
+
+            // Add rubric scores
+            if (criteria && criteria.rubrics) {
+              criteria.rubrics.forEach((_, idx) => {
+                const score = evalObj[`rubric_${idx}`];
+                if (score !== null && score !== undefined) {
+                  seevalObj[`rubric_${idx}`] = score;
+                }
+              });
+            }
+
+            result.seeval = seevalObj;
+          }
+
+          return result;
+        });
+
+        const text = toJSONL(merged);
+        const base = state.filename?.replace(/\.[^/.]+$/, "") || "dataset";
+        download(`${base}.annotated.jsonl`, text);
+      }
+
+      function clearProgress() {
+        if (!state.key) return;
+        if (!confirm("Delete saved progress for this file?")) return;
+        localStorage.removeItem(state.key);
+        alert("Progress cleared.");
+        renderSessions();
+      }
+
+      function renderNav() {
+        // Update navigation state
+        renderItem(); // This handles the progress and button states
+      }
+
+      // ——— events ———
+      $("#fileInput").addEventListener("change", (e) => {
+        const f = e.target.files[0];
+        if (f) loadFile(f);
+      });
+      $("#fileInput2").addEventListener("change", (e) => {
+        const f = e.target.files[0];
+        if (f) loadFile(f);
+      });
+
+      $("#nextBtn").onclick = next;
+      $("#prevBtn").onclick = prev;
+      $("#exportBtn").onclick = exportJSONL;
+      $("#clearBtn").onclick = clearProgress;
+      $("#expandBtn").onclick = openOverlay;
+
+      // Copy buttons
+      $("#copyBtnSmall").onclick = () => {
+        try {
+          navigator.clipboard &&
+            navigator.clipboard.writeText(currentJSONText());
+        } catch (e) {}
+      };
+
+      // Overlay controls
+      const closeOv = document.getElementById("closeOverlay");
+      const wrapFull = document.getElementById("wrapToggleFull");
+      const copyFull = document.getElementById("copyBtnFull");
+      const overlay = document.getElementById("overlay");
+      if (closeOv) closeOv.onclick = closeOverlay;
+      if (wrapFull)
+        wrapFull.onclick = () => {
+          wrapLines = !wrapLines;
+          applyWrap();
+        };
+      if (copyFull)
+        copyFull.onclick = () => {
+          try {
+            navigator.clipboard &&
+              navigator.clipboard.writeText(currentJSONText());
+          } catch (e) {}
+        };
+      if (overlay)
+        overlay.addEventListener("click", (e) => {
+          if (e.target === overlay) closeOverlay();
+        });
+
+      // Wrap toggle
+      $("#wrapToggle").onclick = () => {
+        wrapLines = !wrapLines;
+        applyWrap();
+      };
+
+      // Tabs
+      $$(".tab").forEach(
+        (t) =>
+          (t.onclick = () => {
+            $$(".tab").forEach((x) => x.classList.remove("active"));
+            t.classList.add("active");
+            const v = t.dataset.tab;
+            $$("[data-view]").forEach((x) => (x.hidden = x.dataset.view !== v));
+          })
+      );
+
+      // Keyboard shortcuts
+      document.addEventListener("keydown", (e) => {
+        if (e.target.matches("input,textarea")) {
+          if ((e.key === "s" || e.key === "S") && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            exportJSONL();
+          }
+          return;
+        }
+
+        const ovOpen = isOverlayOpen();
+        if (ovOpen) {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            closeOverlay();
+            return;
+          }
+          if (e.key === "w" || e.key === "W") {
+            e.preventDefault();
+            wrapLines = !wrapLines;
+            applyWrap();
+            return;
+          }
+        }
+        if (e.key === "z" || e.key === "Z") {
+          e.preventDefault();
+          openOverlay();
+          return;
+        }
+
+        if (e.key === "j" || e.key === "J" || e.key === "ArrowRight") {
+          e.preventDefault();
+          next();
+        }
+        if (e.key === "k" || e.key === "K" || e.key === "ArrowLeft") {
+          e.preventDefault();
+          prev();
+        }
+        if (e.key === "n" || e.key === "N") {
+          e.preventDefault();
+          $("#notes").focus();
+        }
+        if ((e.key === "s" || e.key === "S") && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          exportJSONL();
+        }
+      });
+
+      // Demo data with criteria
+      const demo = [
+        {
+          item: { id: 1, question: "What is 2+2?", answer: "4" },
+          criteria: {
+            rubrics: [
+              { ge: 0, le: 10, desc: "Mathematical accuracy" },
+              { ge: 0, le: 5, desc: "Clarity of explanation" },
+            ],
+            max_total_score: 15,
+          },
+        },
+        {
+          item: { id: 2, question: "Capital of France?", answer: "Paris" },
+          criteria: {
+            rubrics: [
+              { ge: 0, le: 10, desc: "Factual correctness" },
+              { ge: 0, le: 5, desc: "Completeness" },
+            ],
+            max_total_score: 15,
+          },
+        },
+      ]
+        .map(JSON.stringify)
+        .join("\n");
+
+      $("#loadDemo").onclick = () => loadTextAsDataset(demo, "demo.jsonl");
+      $("#loadDemo2").onclick = () => loadTextAsDataset(demo, "demo.jsonl");
+
+      // Initial UI state
+      $("#app").hidden = true;
+    </script>
+  </body>
+</html>

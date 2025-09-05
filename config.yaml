@@ -1,0 +1,63 @@
+model_list:
+  - model_name: llama4-maverick
+    litellm_params:
+      model: meta_llama/Llama-4-Maverick-17B-128E-Instruct-FP8
+      api_key: os.environ/META_LLAMA_API_KEY
+      max_tokens: 4028
+      temperature: 0.2
+    tpm_limit: 4000000
+    rpm_limit: 2000
+  - model_name: llama4-scout
+    litellm_params:
+      model: meta_llama/Llama-4-Maverick-17B-128E-Instruct-FP8
+      api_key: os.environ/META_LLAMA_API_KEY
+      max_tokens: 4028
+      temperature: 0.2
+    tpm_limit: 4000000
+    rpm_limit: 2000
+  - model_name: bedrock-haiku # Alias for DSPy to use
+    litellm_params:
+      model: bedrock/anthropic.claude-3-5-haiku-20241022-v1:0
+      region_name: us-west-2 # AWS region
+      aws_access_key_id: os.environ/AWS_ACCESS_KEY_ID
+      aws_secret_access_key: os.environ/AWS_SECRET_ACCESS_KEY
+      aws_region_name: os.environ/CUSTOM_AWS_REGION_NAME
+    tpm_limit: 4000000
+    rpm_limit: 2000
+  - model_name: bedrock-sonnet # Alias for DSPy to use
+    litellm_params:
+      model: bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0
+      region_name: us-west-2 # AWS region
+      aws_access_key_id: os.environ/AWS_ACCESS_KEY_ID
+      aws_secret_access_key: os.environ/AWS_SECRET_ACCESS_KEY
+      aws_region_name: os.environ/CUSTOM_AWS_REGION_NAME
+    tpm_limit: 4000000
+    rpm_limit: 500
+    max_tokens_to_sample: 20000 # raise this to whatever your use‑case needs
+  - model_name: bedrock-sonnet-372 # Alias for DSPy to use
+    litellm_params:
+      region_name: us-west-2 # AWS region
+      model: bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0
+      aws_access_key_id: os.environ/AWS_ACCESS_KEY_ID
+      aws_secret_access_key: os.environ/AWS_SECRET_ACCESS_KEY
+      aws_region_name: os.environ/CUSTOM_AWS_REGION_NAME
+    tpm_limit: 20000
+    rpm_limit: 3
+  - model_name: bedrock-sonnet-37 # Alias for DSPy to use
+    litellm_params:
+      model: bedrock/us.anthropic.claude-3-7-sonnet-20250219-v1:0
+      region_name: us-west-2 # AWS region
+      aws_access_key_id: os.environ/AWS_ACCESS_KEY_ID
+      aws_secret_access_key: os.environ/AWS_SECRET_ACCESS_KEY
+      aws_region_name: os.environ/CUSTOM_AWS_REGION_NAME
+    tpm_limit: 1000000
+    rpm_limit: 200
+  - model_name: bedrock-cohere
+    tpm_limit: 300000
+    rpm_limit: 1000
+    litellm_params:
+      model: bedrock/cohere.embed-multilingual-v3
+      region_name: us-west-2 # AWS region
+      aws_access_key_id: os.environ/AWS_ACCESS_KEY_ID
+      aws_secret_access_key: os.environ/AWS_SECRET_ACCESS_KEY
+      aws_region_name: os.environ/CUSTOM_AWS_REGION_NAME

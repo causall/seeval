@@ -2,8 +2,9 @@ import dspy
 import pydantic
 from dataclasses import dataclass
 from pydantic import Field
-from typing import Annotated, Unpack,List, Tuple, TypedDict, Type, TypeVar
+from typing import Sequence, Annotated, Unpack,List, Tuple, TypedDict, Type, TypeVar, Generic, Callable
 from dspy import InputField, OutputField
+import numpy as np
 import data_types as types
 
 
@@ -91,6 +92,7 @@ class AnalysisPlanning(dspy.Signature):
 class ScenarioArgs(pydantic.BaseModel):
     scenario: str
 
+
 GRADER_PROMPT_1 = """
 System:
   You are an expert medical grader. Compare the **Reference Answer** to the **Model's Answer** and produce **only** a JSON object with:
@@ -125,87 +127,82 @@ def make_ordered_score_tuple(
 class SemanticSignature[V](dspy.Signature):
     criteria: types.Criteria = InputField(description="The criteria for grading")
     input: V = InputField(description="The input to be graded")
-    score: int = OutputField(description="The score of how the input meets the criteria")
+    score: float = OutputField(description="The score of how the input meets the criteria")
+
+class ContrastiveSignature[V, O](dspy.Signature):
+    """
+    Your goal is to modify the input to fail the criteria, and return the modified input as output.
+    How much you fail the criteria will be determined by the noise factor specified. Use the noise factor to
+    adjust the input to impact the score of how the input meets the criteria by that amount.
+    """
+    criteria: types.Criteria = InputField(description="The criteria for grading")
+    noise_factor: float = InputField(description="The noise factor for modifying the input")
+    input: V = InputField(description="The input to be graded")
+    output: O = OutputField(description="The modified input, to meet the contrastive criteria")
 
 T = TypeVar('T')
 class GradingInput[T](TypedDict):
     criteria: types.Criteria
     input: T
 
+class ContrastiveInput[T](TypedDict):
+    criteria: types.Criteria
+    noise_factor: float
+    input: T
+
 C = TypeVar('C')
 
 class GradingResult(pydantic.BaseModel):
-    score:int
+    score:float
 
-class GraderGenerationModule[C](dspy.Module):
-    def __init__(self):
-        self.grader = dspy.ChainOfThought(SemanticSignature[C])
 
-    def forward(self, input: GradingInput[T]) -> GradingResult:
+I = TypeVar('I', bound='pydantic.BaseModel')
+class GraderGenerationModule(dspy.Module,Generic[I]):
+    def __init__(self, input_type: Type[I]):
+        self.grader = dspy.ChainOfThought(SemanticSignature[GradingInput[input_type]])
+
+    def forward(self, input: GradingInput[I]) -> dspy.Prediction:
         return self.grader(**input)
 
     def get_value(self, prediction: dspy.Prediction) -> GradingResult:
         return prediction.score
 
+def make_semantic_grader(InputType: Type[I])->GraderGenerationModule[I]:
+    return GraderGenerationModule(InputType)
+
+class GraderContrastiveModule(dspy.Module, Generic[I]):
+    def __init__(self, input_type: Type[I]):
+        self.contrast = dspy.ChainOfThought(ContrastiveSignature[ContrastiveInput[input_type], input_type])
+
+    def forward(self, input: ContrastiveInput[I]) -> dspy.Prediction:
+        return self.contrast(**input)
+
+    def get_value(self, prediction: dspy.Prediction) -> I:
+        return prediction.output
+
+# Normal distribution noise factor application to inputs
+In = TypeVar('In')
+def from_grading_inputs(inputs: Sequence[GradingInput[In]], mean_noise_factor: float, rng: np.random.Generator = np.random.default_rng(42)) -> List[ContrastiveInput[In]]:
+    noise_factors = rng.normal(loc=mean_noise_factor, size=len(inputs))
+    return [from_grading_input(input, noise_factor) for input, noise_factor in zip(inputs, noise_factors)]
+
+
+In2 = TypeVar('In2')
+def from_grading_input(input: GradingInput[In2], noise_factor: float) -> ContrastiveInput[In2]:
+    return ContrastiveInput(criteria=input['criteria'], input=input['input'], noise_factor=noise_factor)
+
+def make_contrastive_grader(InputType: Type[I])->GraderContrastiveModule[I]:
+    return GraderContrastiveModule(InputType)
+
 class InterviewGenerationModule(dspy.Module):
     def __init__(self):
         self.analysis_plan = dspy.ChainOfThought(AnalysisPlanning)
 
-    def forward(self, scenario: ScenarioArgs)->AnalysisPlanningResult:
+    def forward(self, scenario: ScenarioArgs)->dspy.Prediction:
         return self.analysis_plan(**scenario.model_dump())
 
     def get_value(self, prediction: dspy.Prediction)->AnalysisPlanningResult:
         return prediction.analysis_plan
 
-class SeeValStats(pydantic.BaseModel):
-    histogram: List[List[int]] = pydantic.Field(default_factory=list, description="The histogram of the data")
-    average_score: float = pydantic.Field(default=0.0, description="The average score of the data")
-    max_score: int = pydantic.Field(default=0, description="The maximum score of the data")
-    min_score: int = pydantic.Field(default=0, description="The minimum score of the data")
-    total_score: int = pydantic.Field(default=0, description="The total score of the data")
-    total_count: int = pydantic.Field(default=0, description="The total count of the data")
-
-def make_export_json_type(DataModel: Type[pydantic.BaseModel])->Type[pydantic.BaseModel]:
-    class ExportJSON(DataModel):
-        score: int = pydantic.Field(default=0, description="The score of the data")
-
-    class ExportJSONL(pydantic.BaseModel):
-        seeval_stats: SeeValStats = pydantic.Field(description="The statistics of the data")
-        data: List[ExportJSON] = pydantic.Field(default_factory=list, description="The data")
-    return ExportJSONL
-
-def get_single_page_instructions(DataModel: Type[pydantic.BaseModel], scale: bool, score=None, addendum=None):
-    initial = f"""
-    Create a single page dependency free html page, that is used to evaluate the success of a json object that is
-    specified by the user. Here is the schema for the data being modeled
-    The DataModel Schema: {DataModel.model_json_schema()}.
-
-    Break this up logically that makes it easy to understand and navigate. The single page html file should allow you to import a .jsonl file that adheres to the schema
-    and should provide a user interface for the user to interact with the data, by scoring it. We want to export the results to a .json file of the users choosing that results in a prefix that the user sets in an input box.
-    we should also save the results of the evalution to storage so we can resume if we were in the middle of the evaluation. We should also be able to reset the evaluation.
-
-    IMPORTING:
-        The imported file should be a .jsonl file that contains the data to be evaluated. The file should be named according to the prefix set by the user in the input box. And the content should STRICTLY"
-        follow {make_export_json_type(DataModel).model_json_schema()}
-
-    EXPORTING:
-        The exported file should be a .jsonl file that contains the results of the evaluation. The file should be named according to the prefix set by the user in the input box. And the content should STRICTLY"
-        follow {make_export_json_type(DataModel).model_json_schema()}
-    """
-    new_score = f"""
-    SCORING:
-    Add a simple and easy to use rating mechanism that allows the user to accept or reject the data. This mechanism should be easy to use and should allow the user to quickly and easily rate the data.
-    Keep track of the statistics of the ratings and provide a summary of the ratings at the end of the evaluation.
-    """
-
-    if scale:
-        new_score = f"""
-        SCORING:
-
-        Add a simple and easy to use rating mechanism that allows the user to rate the data on a scale of 1 to 10.
-        Keep track of the statistics of the ratings and provide a summary of the ratings at the end of the evaluation.
-        """
-    if(score is None):
-        score = new_score
-
-    return initial + score
+# I want to generate synthetic data that produces a range of scores based on the criteria
+# is this what I want to do? To produce a distribution of good and bad examples

@@ -11,13 +11,15 @@ def run_parallel(module: types.ForwardModule[types.T, types.R],
     concurrency: int)-> types.ResponseData[types.R]:
     def executor(args: types.T):
         with dspy.context(lm=lm):
-            return module.forward(args)
+            result = module.forward(args)
+            return module.get_value(result), result
 
     with ThreadPoolExecutor(max_workers=concurrency) as ex:
         futures = {ex.submit(executor, args): i for i, args in enumerate(args_list)}
         results: List[types.R | None] = [None] * len(args_list)
+        preds: List[dspy.Prediction | None] = [None] * len(args_list)
         # thread-safe because they write to different areas of memory
         for fut in as_completed(futures):
             idx = futures[fut]
-            results[idx] = module.get_value(fut.result())
-    return types.ResponseData(data=results)
+            results[idx], preds[idx] = fut.result()
+    return types.ResponseData(data=results, debug=preds)

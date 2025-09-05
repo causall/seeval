@@ -1,0 +1,5 @@
+*.pyc
+__pycache_
+.venv
+.DS_Store
+LLMLOG.md
