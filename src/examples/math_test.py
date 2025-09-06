@@ -1,7 +1,7 @@
 from typing import TypeVar, Generic, Callable, ParamSpec, Protocol, Type, TypeVarTuple, Mapping, Any, TypedDict, Unpack, runtime_checkable
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d as plt3d
-import utils
+from seevals import utils
 import numpy as np
 import pandas as pd
 

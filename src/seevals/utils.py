@@ -1,6 +1,6 @@
 import pydantic
 from typing import Type, List, TypeVar, Optional
-import data_types as types
+from . import data_types as types
 import json
 import dspy
 from typing import Callable
