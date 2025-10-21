@@ -3,3 +3,4 @@ __pycache_
 .venv
 .DS_Store
 LLMLOG.md
+evaluation_dataset.jsonl

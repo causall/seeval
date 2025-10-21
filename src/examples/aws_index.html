@@ -1,0 +1,378 @@
+<script src="https://assets.crowd.aws/crowd-html-elements.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsonpath-plus@7.2.0/dist/index.browser.umd.min.js"></script>
+
+<crowd-form>
+  <style>
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      font-family: system-ui, sans-serif;
+    }
+    .header {
+      background: white;
+      padding: 16px 24px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid #e5e7eb;
+    }
+    .header h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+    .progress {
+      font-size: 14px;
+      color: #6b7280;
+    }
+    .main-layout {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .left-column {
+      flex: 1 1 60%;
+    }
+    .right-column {
+      flex: 1 1 40%;
+    }
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      border: 1px solid #e5e7eb;
+    }
+    .card h3 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      color: #111827;
+    }
+    .view-section {
+      margin-bottom: 16px;
+    }
+    .view-label {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 4px;
+      font-family: monospace;
+    }
+    .view-content {
+      background: #f9fafb;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+    .scroll {
+      max-height: 300px;
+      overflow: auto;
+    }
+    .data-section {
+      background: #fef3c7;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #fcd34d;
+    }
+    .rubric-desc {
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    .rubric-scale {
+      font-size: 13px;
+      margin-bottom: 4px;
+      font-style: italic;
+    }
+    .rubric-range {
+      font-size: 12px;
+      margin-bottom: 16px;
+    }
+    .muted {
+      color: #6b7280;
+      font-size: 12px;
+    }
+    .score-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .score-btn {
+      min-width: 48px;
+      padding: 12px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .score-btn:hover {
+      border-color: #3b82f6;
+      background: #eff6ff;
+    }
+    .score-btn.active {
+      border-color: #3b82f6;
+      background: #3b82f6;
+      color: white;
+    }
+    .score-input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+    .nav-controls {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    button {
+      padding: 12px 24px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      background: white;
+      transition: all 0.2s;
+    }
+    button:hover:not(:disabled) {
+      border-color: #3b82f6;
+      background: #eff6ff;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-size: 13px;
+    }
+  </style>
+
+  <div class="container">
+    <div class="header">
+      <h2>Evaluation Task: Group {{ task.input.group_id }}</h2>
+      <div class="progress" id="progress"></div>
+    </div>
+
+    <!-- Hidden inputs for score submission -->
+    <div id="hidden-scores">
+      {% for item in task.input.items %}
+      <input
+        type="hidden"
+        name="scores[{{ forloop.index0 }}][id]"
+        value="{{ item.id }}"
+      />
+      <input
+        type="hidden"
+        name="scores[{{ forloop.index0 }}][score]"
+        id="score_{{ forloop.index0 }}"
+        value=""
+      />
+      {% endfor %}
+      <input type="hidden" name="group_id" value="{{ task.input.group_id }}" />
+    </div>
+
+    <div id="app">
+      <div class="main-layout">
+        <div class="left-column" id="left-column"></div>
+        <div class="right-column" id="right-column"></div>
+      </div>
+
+      <div class="nav-controls">
+        <button type="button" id="prev-btn">← Previous</button>
+        <button type="button" id="next-btn">Next →</button>
+      </div>
+    </div>
+
+    <short-instructions>
+      Review each item and assign a score based on the rubric. Navigate through
+      all items before submitting.
+    </short-instructions>
+
+    <full-instructions header="Evaluation Instructions">
+      <p>
+        For each item, read the context provided on the left and use the rubric
+        on the right to assign an appropriate score.
+      </p>
+      <ul>
+        <li>Use number keys (0-9) to quickly assign scores</li>
+        <li>Use arrow keys (← →) to navigate between items</li>
+        <li>Press Enter to advance to the next item after scoring</li>
+        <li>All items must be scored before you can submit</li>
+      </ul>
+    </full-instructions>
+  </div>
+
+  <script>
+    // Load data from task input (Liquid template)
+    // task.input should contain: { group_id, items, raw_data }
+    const groupData = {{ task.input | to_json }};
+
+    // Inline minimal evaluator logic
+    let currentItemIndex = 0;
+    const items = groupData.items;
+    const rawData = groupData.raw_data;
+    const scores = {};
+
+    function resolveJsonPath(path, data) {
+      const { JSONPath } = window;
+      try {
+        const result = JSONPath({ path, json: data });
+        return result.length > 0 ? result[0] : null;
+      } catch (e) {
+        console.error(`Error resolving path ${path}:`, e);
+        return null;
+      }
+    }
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function formatData(data) {
+      if (data === null || data === undefined) return '<span class="muted">null</span>';
+      if (typeof data === 'string') return escapeHtml(data);
+      if (typeof data === 'object') return `<pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>`;
+      return escapeHtml(String(data));
+    }
+
+    function render() {
+      const item = items[currentItemIndex];
+      const score = scores[currentItemIndex];
+
+      // Progress
+      document.getElementById('progress').textContent =
+        `Item ${currentItemIndex + 1} / ${items.length}`;
+
+      // Left column
+      let leftHtml = '<div class="card">';
+      leftHtml += '<h3>Data to Evaluate</h3>';
+      leftHtml += `<div class="data-section scroll">${formatData(item.data)}</div>`;
+      if (item.sample) {
+        leftHtml += `<div class="muted" style="margin-top: 8px;">Part of ${item.sample.num_samples} sampled items</div>`;
+      }
+      leftHtml += '<h3>Context</h3>';
+      for (const viewPath of item.view.views) {
+        const viewData = resolveJsonPath(viewPath, rawData);
+        leftHtml += `<div class="view-section">`;
+        leftHtml += `<div class="view-label">${escapeHtml(viewPath)}</div>`;
+        leftHtml += `<div class="view-content scroll">${formatData(viewData)}</div>`;
+        leftHtml += `</div>`;
+      }
+      leftHtml += '</div>';
+      document.getElementById('left-column').innerHTML = leftHtml;
+
+      // Right column
+      let rightHtml = '<div class="card">';
+      rightHtml += '<h3>Rubric</h3>';
+      rightHtml += `<div class="rubric-desc">${escapeHtml(item.rubric.desc)}</div>`;
+      if (item.rubric.scale) {
+        rightHtml += `<div class="rubric-scale muted">${escapeHtml(item.rubric.scale)}</div>`;
+      }
+      rightHtml += `<div class="rubric-range muted">Range: ${item.rubric.ge} - ${item.rubric.le}</div>`;
+      rightHtml += '<h3>Score</h3>';
+
+      const range = item.rubric.le - item.rubric.ge;
+      if (range <= 9 && Number.isInteger(item.rubric.ge) && Number.isInteger(item.rubric.le)) {
+        rightHtml += '<div class="score-buttons">';
+        for (let i = item.rubric.ge; i <= item.rubric.le; i++) {
+          const active = score === i ? 'active' : '';
+          rightHtml += `<button type="button" class="score-btn ${active}" data-score="${i}">${i}</button>`;
+        }
+        rightHtml += '</div>';
+        rightHtml += '<div class="muted" style="margin-top: 8px;">Keyboard: Press number key</div>';
+      } else {
+        rightHtml += `<input type="number" id="score-input" class="score-input" min="${item.rubric.ge}" max="${item.rubric.le}" step="0.1" value="${score ?? ''}" placeholder="Enter score">`;
+      }
+
+      rightHtml += '</div>';
+      document.getElementById('right-column').innerHTML = rightHtml;
+
+      // Attach listeners
+      document.querySelectorAll('.score-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const s = parseFloat(btn.dataset.score);
+          setScore(s);
+        });
+      });
+
+      const scoreInput = document.getElementById('score-input');
+      if (scoreInput) {
+        scoreInput.addEventListener('input', (e) => {
+          const s = parseFloat(e.target.value);
+          if (!isNaN(s)) setScore(s);
+        });
+      }
+
+      // Navigation
+      document.getElementById('prev-btn').disabled = currentItemIndex === 0;
+      document.getElementById('next-btn').disabled = currentItemIndex === items.length - 1;
+    }
+
+    function setScore(score) {
+      scores[currentItemIndex] = score;
+      document.getElementById(`score_${currentItemIndex}`).value = score;
+      render();
+    }
+
+    document.getElementById('prev-btn').addEventListener('click', () => {
+      if (currentItemIndex > 0) {
+        currentItemIndex--;
+        render();
+      }
+    });
+
+    document.getElementById('next-btn').addEventListener('click', () => {
+      if (currentItemIndex < items.length - 1) {
+        currentItemIndex++;
+        render();
+      }
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      const item = items[currentItemIndex];
+      const range = item.rubric.le - item.rubric.ge;
+
+      if (range <= 9 && e.key >= '0' && e.key <= '9') {
+        const s = parseInt(e.key);
+        if (s >= item.rubric.ge && s <= item.rubric.le) setScore(s);
+      }
+
+      if (e.key === 'ArrowLeft' && currentItemIndex > 0) {
+        currentItemIndex--;
+        render();
+      }
+
+      if (e.key === 'ArrowRight' && currentItemIndex < items.length - 1) {
+        currentItemIndex++;
+        render();
+      }
+
+      if (e.key === 'Enter' && scores[currentItemIndex] !== undefined) {
+        if (currentItemIndex < items.length - 1) {
+          currentItemIndex++;
+          render();
+        }
+      }
+
+      if (e.key === 'Escape') {
+        scores[currentItemIndex] = null;
+        document.getElementById(`score_${currentItemIndex}`).value = '';
+        render();
+      }
+    });
+
+    render();
+  </script>
+</crowd-form>

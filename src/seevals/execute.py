@@ -10,7 +10,7 @@ def run_parallel(module: types.ForwardModule[types.T, types.R],
                  concurrency: int) -> types.ResponseData[types.R]:
     def executor(args: types.T):
         with dspy.context(lm=lm):
-            result = module.forward(args)
+            result = module(args)
             return module.get_value(result), result
 
     with ThreadPoolExecutor(max_workers=concurrency) as ex:

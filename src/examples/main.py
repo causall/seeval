@@ -1,15 +1,16 @@
+import pdb
 import pydantic
 import json
 from typing import TypedDict, Type, Tuple, Dict, Iterable, ParamSpec, TypeVar, Generic, List, Callable, Optional, Protocol
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import random
 import dspy
-import utils
-import agent_util
-import agents
-from execute import run_parallel
-import data_types as types
-from agents import ScenarioArgs
+import seevals.utils as utils
+import seevals.agent_util as agent_util
+import seevals.agents as agents
+from seevals.execute import run_parallel
+import seevals.data_types as types
+from seevals.agents import ScenarioArgs
 from pdb import Pdb
 
 T = TypeVar('T')
@@ -25,7 +26,7 @@ lm = dspy.LM(
 
 
 scenarios = utils.load_from("./scenarios.jsonl", agents.ScenarioArgs)
-results = run_parallel(agents.InterviewGenerationModule(), scenarios, lm, 20)
+results = run_parallel(agents.InterviewGenerationModule(), scenarios, lm, 1)
 utils.write_results_from_response('./results.jsonl', results)
 
 rubrics = [
@@ -43,27 +44,76 @@ rubrics = [
 rubrics = [
     types.Rubric(ge=0, le=2, desc="Plan overview is consistent with relationships",
                  scale="0 is not consistent, 1 is partially consistent, 2 is consistent"),
-    types.Rubric(ge=0, le=3, desc="Relationships make logical sense",
-                 scale="0 is not logical, 1 is partially logical, 2 is mostly logical, 3 is perfectly logical"),
     types.Rubric(ge=0, le=3, desc="Entities described have logical types",
                  scale="0 is not logical, 1 is partially consistent, 2 is consistent, 3 is perfectly consistent"),
+    types.Rubric(ge=0, le=3, desc="Relationships make logical sense",
+                 scale="0 is not logical, 1 is partially logical, 2 is mostly logical, 3 is perfectly logical"),
 ]
+
+
+eval = types.EvalDatasetBuilder.build(agents.AnalysisPlanningResult)
+
+eval.add("$.analysis_overview", None,
+         types.View(views=["$.analysis_indices.relationships_index", "$.analysis_indices.subsections_index"]), rubrics[0])
+
+eval.add("$.analysis_indices.entities_index", types.Sample(
+    num_samples=5), types.View(views=["$.analysis_overview"]), rubrics[1])
+
+eval.add("$.analysis_indices.relationships_index", types.Sample(
+    num_samples=5), types.View(views=["$.analysis_overview"]), rubrics[2])
+
+evaluation_dataset = eval.apply(results.data, seed=47)
+
+utils.write_eval_dataset('./evaluation_dataset.jsonl', evaluation_dataset)
+
+pdb.set_trace()
+"""
+for each entry in the result, we extract the item,
+then we reconstruct it using the config which looks like
+an array of arrays now [[]] and each entry of that can then have a score then evaluation is just adding a score field to each
+entry then. and simply iterating through a collection of these per item making it easy to color etc... in the ui
+
+"""
+
+
+"""
+class EvalPlan:
+    always_display: ["*",".",...]
+    fields: [
+        ""
+    ]
+    sample_fields: [
+        {
+            "path": "analysis_plan.entities",
+            "num_samples": 10,
+            "confidence": 0.95
+        },
+        {
+            "path": "analysis_plan.relationships",
+            "num_samples": 10,
+            "confidence": 0.95
+        },
+    ]
+
+"""
 
 """
 sample_fields = [
-    types.SampleCriteria(path="analysis_plan.entities", model=AnalysisPlanningResult),
-    types.SampleCriteria(path="analysis_plan.relationships", model=AnalysisPlanningResult),
+    types.SampleCriteria(path="analysis_plan.entities",
+                         model=AnalysisPlanningResult),
+    types.SampleCriteria(path="analysis_plan.relationships",
+                         model=AnalysisPlanningResult),
 ]
 types.SampleCriteria(sample_fields=sample_fields, e=0.2, confidence=0.95)
 """
 
 
-def get_hoeffding_error_margin(confidence: float, num_samples: int) -> float:
+# def get_hoeffding_error_margin(confidence: float, num_samples: int) -> float:
 
 
-def make_sample_criteria(num_samples: int, confidence: float) -> types.SampleCriteria:
+# def make_sample_criteria(num_samples: int, confidence: float) -> types.SampleCriteria:
 
-    # SampleCriteria
+# SampleCriteria
 
 
 criteria = types.Criteria(rubrics=rubrics, max_total_score=6)
@@ -86,7 +136,7 @@ contrastive_inputs = agents.from_grading_inputs(grading_inputs, noise_factor)
 contraster = agents.make_contrastive_grader(agents.AnalysisPlanningResult)
 contrastive_outputs = run_parallel(contraster, contrastive_inputs, lm, 20)
 
-sampler(contrastive_outputs, sample_criteria)
+# sampler(contrastive_outputs, sample_criteria)
 
 
 # generate synthetic data

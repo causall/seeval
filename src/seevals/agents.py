@@ -65,6 +65,19 @@ class MetaAnalysis(pydantic.BaseModel):
         description="The indices of the analysis to enable efficient querying")
 
 
+"""
+@config(configuration=config)
+EvalPlan:
+   @sample("analysis_overview")
+    analysis_overview: 
+
+
+I'm working on a decorator called sample that allows me to sample from List parameters it should take a config_name this name would then be used to look up a configuration when the object was passed to a function called eval and it would read all the decorators on the class like walking the entire class and it's sub instances and resolving the configuration names with what's passed to the eval function 
+
+eval(instance, config) the result would be an Eval<Object> 
+"""
+
+
 class InterviewAnalysis(dspy.Signature):
     """
     You are a tokenomics, economics, and behavioral psychology expert. You are skilled at genrating causal loop diagrams and mapping relationships.
