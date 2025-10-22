@@ -250,10 +250,31 @@
         </div>
 
         <div class="nav-controls">
-          <button id="prev-btn" class="btn-secondary">← Previous</button>
-          <button id="submit-btn" class="btn-primary">
-            Submit & Next Group →
-          </button>
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 8px;
+            "
+          >
+            <button id="prev-item-btn" class="btn-secondary">
+              ← Previous Item
+            </button>
+            <button id="next-item-btn" class="btn-secondary">
+              Next Item →
+            </button>
+          </div>
+          <div style="display: flex; justify-content: space-between; gap: 12px">
+            <button id="prev-group-btn" class="btn-secondary">
+              ← Prev Group
+            </button>
+            <button id="submit-btn" class="btn-primary">
+              Submit & Next Group →
+            </button>
+            <button id="next-group-btn" class="btn-secondary">
+              Next Group →
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -296,6 +317,7 @@
               state.currentDatumIndex = savedState.currentDatumIndex;
               state.currentItemIndex = savedState.currentItemIndex;
               state.scores = savedState.scores;
+              state.groupItemPositions = savedState.groupItemPositions || {};
             }
 
             // Show app, hide loader
@@ -357,7 +379,12 @@
         }
 
         // Update navigation buttons
-        document.getElementById("prev-btn").disabled = !state.canGoPrev();
+        document.getElementById("prev-item-btn").disabled = !state.canGoPrev();
+        document.getElementById("next-item-btn").disabled = !state.canGoNext();
+        document.getElementById("prev-group-btn").disabled =
+          !state.canGoPrevGroup();
+        document.getElementById("next-group-btn").disabled =
+          !state.canGoNextGroup();
         document.getElementById("submit-btn").disabled =
           !state.canSubmitGroup();
         document.getElementById("submit-btn").textContent =
@@ -367,11 +394,53 @@
       }
 
       // Navigation
-      document.getElementById("prev-btn").addEventListener("click", () => {
-        state.prevItem();
-        saveState(state, dataHash);
-        render();
+      document.getElementById("prev-item-btn").addEventListener("click", () => {
+        if (state.canGoPrev()) {
+          state.prevItem();
+          saveState(state, dataHash);
+          render();
+        }
       });
+
+      document.getElementById("next-item-btn").addEventListener("click", () => {
+        if (state.canGoNext()) {
+          state.nextItem();
+          saveState(state, dataHash);
+          render();
+        }
+      });
+
+      document
+        .getElementById("prev-group-btn")
+        .addEventListener("click", () => {
+          if (
+            !state.isGroupComplete() &&
+            !confirm("Current group is incomplete. Continue anyway?")
+          ) {
+            return;
+          }
+
+          if (state.prevGroup()) {
+            saveState(state, dataHash);
+            render();
+          }
+        });
+
+      document
+        .getElementById("next-group-btn")
+        .addEventListener("click", () => {
+          if (
+            !state.isGroupComplete() &&
+            !confirm("Current group is incomplete. Continue anyway?")
+          ) {
+            return;
+          }
+
+          if (state.jumpToNextGroup()) {
+            saveState(state, dataHash);
+            render();
+          }
+        });
 
       document.getElementById("submit-btn").addEventListener("click", () => {
         if (!state.canSubmitGroup()) {
@@ -406,16 +475,48 @@
         }
 
         // Arrow keys for navigation
-        if (e.key === "ArrowLeft" && state.canGoPrev()) {
-          state.prevItem();
-          saveState(state, dataHash);
-          render();
+        if (e.key === "ArrowLeft") {
+          if (e.ctrlKey || e.metaKey) {
+            // Ctrl+Left for previous group
+            if (state.canGoPrevGroup()) {
+              if (
+                !state.isGroupComplete() &&
+                !confirm("Current group is incomplete. Continue anyway?")
+              ) {
+                return;
+              }
+              state.prevGroup();
+              saveState(state, dataHash);
+              render();
+            }
+          } else if (state.canGoPrev()) {
+            // Left for previous item
+            state.prevItem();
+            saveState(state, dataHash);
+            render();
+          }
         }
 
-        if (e.key === "ArrowRight" && state.canGoNext()) {
-          state.nextItem();
-          saveState(state, dataHash);
-          render();
+        if (e.key === "ArrowRight") {
+          if (e.ctrlKey || e.metaKey) {
+            // Ctrl+Right for next group
+            if (state.canGoNextGroup()) {
+              if (
+                !state.isGroupComplete() &&
+                !confirm("Current group is incomplete. Continue anyway?")
+              ) {
+                return;
+              }
+              state.jumpToNextGroup();
+              saveState(state, dataHash);
+              render();
+            }
+          } else if (state.canGoNext()) {
+            // Right for next item
+            state.nextItem();
+            saveState(state, dataHash);
+            render();
+          }
         }
 
         // Enter to advance (if current item scored)

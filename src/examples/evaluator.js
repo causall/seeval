@@ -35,6 +35,7 @@ class EvaluationState {
     this.currentDatumIndex = 0;
     this.currentItemIndex = 0;
     this.scores = {}; // Key: "entryIndex_groupId_itemId", Value: score
+    this.groupItemPositions = {}; // Key: "entryIndex_datumIndex", Value: itemIndex
   }
   
   getCurrentEntry() {
@@ -61,6 +62,20 @@ class EvaluationState {
   getCurrentItem() {
     const datum = this.getCurrentDatum();
     return datum.items[this.currentItemIndex];
+  }
+  
+  getCurrentGroupKey() {
+    return `${this.currentEntryIndex}_${this.currentDatumIndex}`;
+  }
+  
+  saveCurrentItemPosition() {
+    const key = this.getCurrentGroupKey();
+    this.groupItemPositions[key] = this.currentItemIndex;
+  }
+  
+  restoreItemPosition() {
+    const key = this.getCurrentGroupKey();
+    this.currentItemIndex = this.groupItemPositions[key] ?? 0;
   }
   
   getScoreKey() {
@@ -120,18 +135,61 @@ class EvaluationState {
   
   nextGroup() {
     if (this.currentDatumIndex < this.data.length - 1) {
+      this.saveCurrentItemPosition();
       this.currentDatumIndex++;
-      this.currentItemIndex = 0;
+      this.restoreItemPosition();
       return true;
     }
     // Try to advance to next entry
     if (this.currentEntryIndex < this.jsonlEntries.length - 1) {
+      this.saveCurrentItemPosition();
       this.currentEntryIndex++;
       this.currentDatumIndex = 0;
-      this.currentItemIndex = 0;
+      this.restoreItemPosition();
       return true;
     }
     return false;
+  }
+  
+  canGoPrevGroup() {
+    return this.currentDatumIndex > 0 || this.currentEntryIndex > 0;
+  }
+  
+  canGoNextGroup() {
+    return this.currentDatumIndex < this.data.length - 1 || 
+           this.currentEntryIndex < this.jsonlEntries.length - 1;
+  }
+  
+  prevGroup() {
+    if (!this.canGoPrevGroup()) return false;
+    
+    this.saveCurrentItemPosition();
+    
+    if (this.currentDatumIndex > 0) {
+      this.currentDatumIndex--;
+    } else if (this.currentEntryIndex > 0) {
+      this.currentEntryIndex--;
+      this.currentDatumIndex = this.jsonlEntries[this.currentEntryIndex].data.length - 1;
+    }
+    
+    this.restoreItemPosition();
+    return true;
+  }
+  
+  jumpToNextGroup() {
+    if (!this.canGoNextGroup()) return false;
+    
+    this.saveCurrentItemPosition();
+    
+    if (this.currentDatumIndex < this.data.length - 1) {
+      this.currentDatumIndex++;
+    } else if (this.currentEntryIndex < this.jsonlEntries.length - 1) {
+      this.currentEntryIndex++;
+      this.currentDatumIndex = 0;
+    }
+    
+    this.restoreItemPosition();
+    return true;
   }
   
   canGoNextEntry() {
@@ -279,7 +337,8 @@ function saveState(state, hash) {
     currentEntryIndex: state.currentEntryIndex,
     currentDatumIndex: state.currentDatumIndex,
     currentItemIndex: state.currentItemIndex,
-    scores: state.scores
+    scores: state.scores,
+    groupItemPositions: state.groupItemPositions
   };
   localStorage.setItem(`eval_state_${hash}`, JSON.stringify(stateData));
 }
