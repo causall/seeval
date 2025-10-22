@@ -287,7 +287,7 @@
             // Try to restore previous state
             const savedState = loadState(dataHash);
             if (savedState && confirm("Resume previous session?")) {
-              state.currentGroupIndex = savedState.currentGroupIndex;
+              state.currentDatumIndex = savedState.currentDatumIndex;
               state.currentItemIndex = savedState.currentItemIndex;
               state.scores = savedState.scores;
             }
@@ -308,6 +308,7 @@
       function render() {
         if (!state) return;
 
+        const datum = state.getCurrentDatum();
         const item = state.getCurrentItem();
         const score = state.getCurrentScore();
         const progress = state.getProgress();
@@ -323,7 +324,7 @@
           state.rawData
         );
         document.getElementById("right-column").innerHTML = renderRightColumn(
-          item,
+          datum,
           score
         );
 
@@ -385,13 +386,13 @@
       document.addEventListener("keydown", (e) => {
         if (!state) return;
 
-        const item = state.getCurrentItem();
-        const range = item.rubric.le - item.rubric.ge;
+        const datum = state.getCurrentDatum();
+        const range = datum.rubric.le - datum.rubric.ge;
 
         // Number keys for scoring (if using buttons)
         if (range <= 9 && e.key >= "0" && e.key <= "9") {
           const score = parseInt(e.key);
-          if (score >= item.rubric.ge && score <= item.rubric.le) {
+          if (score >= datum.rubric.ge && score <= datum.rubric.le) {
             state.setScore(score);
             saveState(state, dataHash);
             render();
@@ -432,10 +433,10 @@
 
       // Export results
       function exportResults() {
-        // Update the original data with scores
-        state.data.forEach((group) => {
-          group.items.forEach((item) => {
-            const key = `${group.group_id}_${item.id}`;
+        // Update the original data with scores (keeping datum structure)
+        state.data.forEach((datum) => {
+          datum.items.forEach((item) => {
+            const key = `${datum.group_id}_${item.id}`;
             item.score = state.scores[key];
           });
         });

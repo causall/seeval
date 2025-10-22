@@ -91,7 +91,6 @@ class EvalItem(pydantic.BaseModel, Generic[T]):
     id: str
     sample: Optional[Sample]
     view: View
-    rubric: Rubric
     data: Optional[T]
     score: Optional[float] = pydantic.Field(
         default=None, description="The score for the evaluation")
@@ -100,6 +99,7 @@ class EvalItem(pydantic.BaseModel, Generic[T]):
 class EvalDatum(pydantic.BaseModel, Generic[T]):
     group_id: str
     items: List[EvalItem[T]]
+    rubric: Rubric
 
 
 class EvalData(pydantic.BaseModel, Generic[T]):
@@ -135,7 +135,7 @@ class EvalConfig(pydantic.BaseModel):
         tracking_path = ""
         value = ""
         dataset = []
-        for instance in instances[0:1]:
+        for instance in instances[0:2]:
             data: EvalData[Z] = []
             count = 0
             try:
@@ -160,19 +160,18 @@ class EvalConfig(pydantic.BaseModel):
                                 id=f"{path}[{i}]",
                                 sample=cfg.sample,
                                 view=cfg.view,
-                                rubric=cfg.rubric,
                                 data=v))
                     else:
                         items.append(EvalItem(
                             id=path,
                             sample=None,
                             view=cfg.view,
-                            rubric=cfg.rubric,
                             data=value))
 
                     data.append(EvalDatum(
                         group_id=f"{count}",
-                        items=items
+                        items=items,
+                        rubric=cfg.rubric
                     ))
                 count += 1
             except Exception as e:

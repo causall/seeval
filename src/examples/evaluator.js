@@ -13,35 +13,32 @@ function resolveJsonPath(path, data) {
 // ============ State Management ============
 class EvaluationState {
   constructor(evalData) {
-    // Group data by group_id and merge items
-    const groupMap = new Map();
-    evalData.data.forEach(datum => {
-      if (!groupMap.has(datum.group_id)) {
-        groupMap.set(datum.group_id, { group_id: datum.group_id, items: [] });
-      }
-      groupMap.get(datum.group_id).items.push(...datum.items);
-    });
-    
-    this.data = Array.from(groupMap.values()); // Unified groups
+    // Keep datums as-is (each datum has its own rubric and items)
+    this.data = evalData.data;
     this.rawData = evalData.raw_data;
-    this.currentGroupIndex = 0;
+    this.currentDatumIndex = 0;
     this.currentItemIndex = 0;
     this.scores = {}; // Key: "groupId_itemId", Value: score
   }
   
+  getCurrentDatum() {
+    return this.data[this.currentDatumIndex];
+  }
+  
   getCurrentGroup() {
-    return this.data[this.currentGroupIndex];
+    // Kept for backward compatibility with progress display
+    return this.getCurrentDatum();
   }
   
   getCurrentItem() {
-    const group = this.getCurrentGroup();
-    return group.items[this.currentItemIndex];
+    const datum = this.getCurrentDatum();
+    return datum.items[this.currentItemIndex];
   }
   
   getScoreKey() {
-    const group = this.getCurrentGroup();
+    const datum = this.getCurrentDatum();
     const item = this.getCurrentItem();
-    return `${group.group_id}_${item.id}`;
+    return `${datum.group_id}_${item.id}`;
   }
   
   getCurrentScore() {
@@ -53,8 +50,8 @@ class EvaluationState {
   }
   
   canGoNext() {
-    const group = this.getCurrentGroup();
-    return this.currentItemIndex < group.items.length - 1;
+    const datum = this.getCurrentDatum();
+    return this.currentItemIndex < datum.items.length - 1;
   }
   
   canGoPrev() {
@@ -78,10 +75,10 @@ class EvaluationState {
   }
   
   isGroupComplete() {
-    const group = this.getCurrentGroup();
-    for (let i = 0; i < group.items.length; i++) {
-      const item = group.items[i];
-      const key = `${group.group_id}_${item.id}`;
+    const datum = this.getCurrentDatum();
+    for (let i = 0; i < datum.items.length; i++) {
+      const item = datum.items[i];
+      const key = `${datum.group_id}_${item.id}`;
       if (this.scores[key] === undefined || this.scores[key] === null) {
         return false;
       }
@@ -94,8 +91,8 @@ class EvaluationState {
   }
   
   nextGroup() {
-    if (this.currentGroupIndex < this.data.length - 1) {
-      this.currentGroupIndex++;
+    if (this.currentDatumIndex < this.data.length - 1) {
+      this.currentDatumIndex++;
       this.currentItemIndex = 0;
       return true;
     }
@@ -103,13 +100,13 @@ class EvaluationState {
   }
   
   getProgress() {
-    const group = this.getCurrentGroup();
+    const datum = this.getCurrentDatum();
     return {
-      groupIndex: this.currentGroupIndex + 1,
+      groupIndex: this.currentDatumIndex + 1,
       groupTotal: this.data.length,
       itemIndex: this.currentItemIndex + 1,
-      itemTotal: group.items.length,
-      groupId: group.group_id
+      itemTotal: datum.items.length,
+      groupId: datum.group_id
     };
   }
 }
@@ -142,25 +139,25 @@ function renderLeftColumn(item, rawData) {
   return html;
 }
 
-function renderRightColumn(item, currentScore) {
+function renderRightColumn(datum, currentScore) {
   let html = '<div class="card">';
   
   // Rubric information
   html += '<h3>Rubric</h3>';
-  html += `<div class="rubric-desc">${escapeHtml(item.rubric.desc)}</div>`;
-  if (item.rubric.scale) {
-    html += `<div class="rubric-scale muted">${escapeHtml(item.rubric.scale)}</div>`;
+  html += `<div class="rubric-desc">${escapeHtml(datum.rubric.desc)}</div>`;
+  if (datum.rubric.scale) {
+    html += `<div class="rubric-scale muted">${escapeHtml(datum.rubric.scale)}</div>`;
   }
-  html += `<div class="rubric-range muted">Range: ${item.rubric.ge} - ${item.rubric.le}</div>`;
+  html += `<div class="rubric-range muted">Range: ${datum.rubric.ge} - ${datum.rubric.le}</div>`;
   
   // Score input
   html += '<h3>Score</h3>';
-  const range = item.rubric.le - item.rubric.ge;
+  const range = datum.rubric.le - datum.rubric.ge;
   
-  if (range <= 9 && Number.isInteger(item.rubric.ge) && Number.isInteger(item.rubric.le)) {
+  if (range <= 9 && Number.isInteger(datum.rubric.ge) && Number.isInteger(datum.rubric.le)) {
     // Use buttons for small discrete ranges
     html += '<div class="score-buttons">';
-    for (let i = item.rubric.ge; i <= item.rubric.le; i++) {
+    for (let i = datum.rubric.ge; i <= datum.rubric.le; i++) {
       const active = currentScore === i ? 'active' : '';
       html += `<button type="button" class="score-btn ${active}" data-score="${i}">${i}</button>`;
     }
@@ -169,7 +166,7 @@ function renderRightColumn(item, currentScore) {
   } else {
     // Use text input for large ranges
     html += `<input type="number" id="score-input" class="score-input" 
-                    min="${item.rubric.ge}" max="${item.rubric.le}" 
+                    min="${datum.rubric.ge}" max="${datum.rubric.le}" 
                     step="0.1" value="${currentScore ?? ''}" 
                     placeholder="Enter score">`;
   }
@@ -214,7 +211,7 @@ function generateHash(dataString) {
 
 function saveState(state, hash) {
   const stateData = {
-    currentGroupIndex: state.currentGroupIndex,
+    currentDatumIndex: state.currentDatumIndex,
     currentItemIndex: state.currentItemIndex,
     scores: state.scores
   };

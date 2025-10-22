@@ -212,13 +212,14 @@
 
   <script>
     // Load data from task input (Liquid template)
-    // task.input should contain: { group_id, items, raw_data }
+    // task.input should contain: { group_id, rubric, items, raw_data }
     const groupData = {{ task.input | to_json }};
 
     // Inline minimal evaluator logic
     let currentItemIndex = 0;
     const items = groupData.items;
     const rawData = groupData.raw_data;
+    const rubric = groupData.rubric;
     const scores = {};
 
     function resolveJsonPath(path, data) {
@@ -275,24 +276,24 @@
       // Right column
       let rightHtml = '<div class="card">';
       rightHtml += '<h3>Rubric</h3>';
-      rightHtml += `<div class="rubric-desc">${escapeHtml(item.rubric.desc)}</div>`;
-      if (item.rubric.scale) {
-        rightHtml += `<div class="rubric-scale muted">${escapeHtml(item.rubric.scale)}</div>`;
+      rightHtml += `<div class="rubric-desc">${escapeHtml(rubric.desc)}</div>`;
+      if (rubric.scale) {
+        rightHtml += `<div class="rubric-scale muted">${escapeHtml(rubric.scale)}</div>`;
       }
-      rightHtml += `<div class="rubric-range muted">Range: ${item.rubric.ge} - ${item.rubric.le}</div>`;
+      rightHtml += `<div class="rubric-range muted">Range: ${rubric.ge} - ${rubric.le}</div>`;
       rightHtml += '<h3>Score</h3>';
 
-      const range = item.rubric.le - item.rubric.ge;
-      if (range <= 9 && Number.isInteger(item.rubric.ge) && Number.isInteger(item.rubric.le)) {
+      const range = rubric.le - rubric.ge;
+      if (range <= 9 && Number.isInteger(rubric.ge) && Number.isInteger(rubric.le)) {
         rightHtml += '<div class="score-buttons">';
-        for (let i = item.rubric.ge; i <= item.rubric.le; i++) {
+        for (let i = rubric.ge; i <= rubric.le; i++) {
           const active = score === i ? 'active' : '';
           rightHtml += `<button type="button" class="score-btn ${active}" data-score="${i}">${i}</button>`;
         }
         rightHtml += '</div>';
         rightHtml += '<div class="muted" style="margin-top: 8px;">Keyboard: Press number key</div>';
       } else {
-        rightHtml += `<input type="number" id="score-input" class="score-input" min="${item.rubric.ge}" max="${item.rubric.le}" step="0.1" value="${score ?? ''}" placeholder="Enter score">`;
+        rightHtml += `<input type="number" id="score-input" class="score-input" min="${rubric.ge}" max="${rubric.le}" step="0.1" value="${score ?? ''}" placeholder="Enter score">`;
       }
 
       rightHtml += '</div>';
@@ -341,12 +342,11 @@
 
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
-      const item = items[currentItemIndex];
-      const range = item.rubric.le - item.rubric.ge;
+      const range = rubric.le - rubric.ge;
 
       if (range <= 9 && e.key >= '0' && e.key <= '9') {
         const s = parseInt(e.key);
-        if (s >= item.rubric.ge && s <= item.rubric.le) setScore(s);
+        if (s >= rubric.ge && s <= rubric.le) setScore(s);
       }
 
       if (e.key === 'ArrowLeft' && currentItemIndex > 0) {
