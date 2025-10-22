@@ -135,9 +135,9 @@ class EvalConfig(pydantic.BaseModel):
         tracking_path = ""
         value = ""
         dataset = []
+        count = 0
         for instance in instances[0:2]:
             data: EvalData[Z] = []
-            count = 0
             try:
                 instance_data = instance.model_dump()
                 for path, cfg in self.config.items():

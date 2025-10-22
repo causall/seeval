@@ -276,17 +276,23 @@
         reader.onload = (event) => {
           try {
             const content = event.target.result;
-            const evalData = JSON.parse(content);
+            const jsonlEntries = parseJSONL(content);
+
+            if (jsonlEntries.length === 0) {
+              alert("No valid JSONL entries found in file");
+              return;
+            }
 
             // Generate hash for state persistence
             dataHash = generateHash(content);
 
             // Initialize state
-            state = new EvaluationState(evalData);
+            state = new EvaluationState(jsonlEntries);
 
             // Try to restore previous state
             const savedState = loadState(dataHash);
             if (savedState && confirm("Resume previous session?")) {
+              state.currentEntryIndex = savedState.currentEntryIndex || 0;
               state.currentDatumIndex = savedState.currentDatumIndex;
               state.currentItemIndex = savedState.currentItemIndex;
               state.scores = savedState.scores;
@@ -316,7 +322,7 @@
         // Update progress
         document.getElementById(
           "progress"
-        ).textContent = `Group ${progress.groupIndex}/${progress.groupTotal} | Item ${progress.itemIndex}/${progress.itemTotal}`;
+        ).textContent = `Entry ${progress.entryIndex}/${progress.entryTotal} | Group ${progress.groupIndex}/${progress.groupTotal} | Item ${progress.itemIndex}/${progress.itemTotal}`;
 
         // Render columns
         document.getElementById("left-column").innerHTML = renderLeftColumn(
@@ -433,26 +439,18 @@
 
       // Export results
       function exportResults() {
-        // Update the original data with scores (keeping datum structure)
-        state.data.forEach((datum) => {
-          datum.items.forEach((item) => {
-            const key = `${datum.group_id}_${item.id}`;
-            item.score = state.scores[key];
-          });
-        });
+        const jsonlOutput = exportResultsAsJSONL(
+          state.jsonlEntries,
+          state.scores
+        );
 
-        const results = {
-          data: state.data,
-          raw_data: state.rawData,
-        };
-
-        const blob = new Blob([JSON.stringify(results, null, 2)], {
-          type: "application/json",
+        const blob = new Blob([jsonlOutput], {
+          type: "application/x-jsonlines",
         });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "evaluation_results.json";
+        a.download = "evaluation_results.jsonl";
         a.click();
 
         alert("Evaluation complete! Results downloaded.");

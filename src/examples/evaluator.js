@@ -1,3 +1,19 @@
+// ============ JSONL Parsing ============
+function parseJSONL(fileContent) {
+  const lines = fileContent.split('\n').filter(line => line.trim());
+  const entries = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    try {
+      entries.push(JSON.parse(lines[i]));
+    } catch (e) {
+      console.error(`Error parsing line ${i + 1}:`, e);
+    }
+  }
+  
+  return entries;
+}
+
 // ============ JSONPath Resolution ============
 // Uses jsonpath-plus library (loaded via CDN)
 function resolveJsonPath(path, data) {
@@ -12,13 +28,25 @@ function resolveJsonPath(path, data) {
 
 // ============ State Management ============
 class EvaluationState {
-  constructor(evalData) {
-    // Keep datums as-is (each datum has its own rubric and items)
-    this.data = evalData.data;
-    this.rawData = evalData.raw_data;
+  constructor(jsonlEntries) {
+    // Store all JSONL entries
+    this.jsonlEntries = jsonlEntries;
+    this.currentEntryIndex = 0;
     this.currentDatumIndex = 0;
     this.currentItemIndex = 0;
-    this.scores = {}; // Key: "groupId_itemId", Value: score
+    this.scores = {}; // Key: "entryIndex_groupId_itemId", Value: score
+  }
+  
+  getCurrentEntry() {
+    return this.jsonlEntries[this.currentEntryIndex];
+  }
+  
+  get data() {
+    return this.getCurrentEntry().data;
+  }
+  
+  get rawData() {
+    return this.getCurrentEntry().raw_data;
   }
   
   getCurrentDatum() {
@@ -38,7 +66,7 @@ class EvaluationState {
   getScoreKey() {
     const datum = this.getCurrentDatum();
     const item = this.getCurrentItem();
-    return `${datum.group_id}_${item.id}`;
+    return `${this.currentEntryIndex}_${datum.group_id}_${item.id}`;
   }
   
   getCurrentScore() {
@@ -78,7 +106,7 @@ class EvaluationState {
     const datum = this.getCurrentDatum();
     for (let i = 0; i < datum.items.length; i++) {
       const item = datum.items[i];
-      const key = `${datum.group_id}_${item.id}`;
+      const key = `${this.currentEntryIndex}_${datum.group_id}_${item.id}`;
       if (this.scores[key] === undefined || this.scores[key] === null) {
         return false;
       }
@@ -96,12 +124,49 @@ class EvaluationState {
       this.currentItemIndex = 0;
       return true;
     }
+    // Try to advance to next entry
+    if (this.currentEntryIndex < this.jsonlEntries.length - 1) {
+      this.currentEntryIndex++;
+      this.currentDatumIndex = 0;
+      this.currentItemIndex = 0;
+      return true;
+    }
+    return false;
+  }
+  
+  canGoNextEntry() {
+    return this.currentEntryIndex < this.jsonlEntries.length - 1;
+  }
+  
+  canGoPrevEntry() {
+    return this.currentEntryIndex > 0;
+  }
+  
+  nextEntry() {
+    if (this.canGoNextEntry()) {
+      this.currentEntryIndex++;
+      this.currentDatumIndex = 0;
+      this.currentItemIndex = 0;
+      return true;
+    }
+    return false;
+  }
+  
+  prevEntry() {
+    if (this.canGoPrevEntry()) {
+      this.currentEntryIndex--;
+      this.currentDatumIndex = 0;
+      this.currentItemIndex = 0;
+      return true;
+    }
     return false;
   }
   
   getProgress() {
     const datum = this.getCurrentDatum();
     return {
+      entryIndex: this.currentEntryIndex + 1,
+      entryTotal: this.jsonlEntries.length,
       groupIndex: this.currentDatumIndex + 1,
       groupTotal: this.data.length,
       itemIndex: this.currentItemIndex + 1,
@@ -211,6 +276,7 @@ function generateHash(dataString) {
 
 function saveState(state, hash) {
   const stateData = {
+    currentEntryIndex: state.currentEntryIndex,
     currentDatumIndex: state.currentDatumIndex,
     currentItemIndex: state.currentItemIndex,
     scores: state.scores
@@ -225,5 +291,26 @@ function loadState(hash) {
 
 function clearState(hash) {
   localStorage.removeItem(`eval_state_${hash}`);
+}
+
+// ============ JSONL Export ============
+
+function exportResultsAsJSONL(jsonlEntries, scores) {
+  const outputLines = jsonlEntries.map((entry, entryIndex) => {
+    // Clone the entry to avoid modifying original
+    const outputEntry = JSON.parse(JSON.stringify(entry));
+    
+    // Add scores to items
+    outputEntry.data.forEach((datum) => {
+      datum.items.forEach((item) => {
+        const key = `${entryIndex}_${datum.group_id}_${item.id}`;
+        item.score = scores[key] ?? null;
+      });
+    });
+    
+    return JSON.stringify(outputEntry);
+  });
+  
+  return outputLines.join('\n');
 }
 
