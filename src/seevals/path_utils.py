@@ -42,6 +42,10 @@ def _generate_from_schema(schema: Dict, defs: Dict) -> any:
         ref_path = schema['$ref'].split('/')[-1]
         return _generate_from_schema(defs.get(ref_path, {}), defs)
 
+    # Handle enum/Literal - return first valid value
+    if 'enum' in schema:
+        return schema['enum'][0]
+
     # Handle anyOf/oneOf - pick first option
     if 'anyOf' in schema:
         return _generate_from_schema(schema['anyOf'][0], defs)
