@@ -30,6 +30,7 @@ class ResponseData(pydantic.BaseModel, Generic[T]):
 
 
 class Rubric(pydantic.BaseModel):
+    id: int = pydantic.Field(description="The id of the rubric")
     ge: float = pydantic.Field(
         default=0.0, description="The minimum score", ge=0.0)
     le: float = pydantic.Field(
@@ -38,13 +39,25 @@ class Rubric(pydantic.BaseModel):
         default="", description="The description of the metric")
     scale: Optional[str] = pydantic.Field(
         default=None, description="The scale of metric")
+    instructions: str = pydantic.Field(
+        default="", description="The json path for how the rubric should be applied either individually to the whole item or for each item in an array")
 
 
 class Criteria(pydantic.BaseModel):
     rubrics: List[Rubric] = dspy.InputField(
         description="The rubrics used for grading the content")
+    """
     max_total_score: float = pydantic.Field(
         default=0.0, description="The sum of the rubric scores, but that must not exceed the maximum score")
+    """
+
+
+class ScoredRubric(pydantic.BaseModel):
+    rubric_id: int = pydantic.Field(description="The id of the rubric")
+    score: float = pydantic.Field(
+        description="The score of the rubric according to the rubric's criteria")
+    json_path: str = pydantic.Field(
+        description="The specific json path for the rubric's application")
 
 
 class SampleCriteria(pydantic.BaseModel):
@@ -136,7 +149,7 @@ class EvalConfig(pydantic.BaseModel):
         value = ""
         dataset = []
         count = 0
-        for instance in instances[0:2]:
+        for instance in instances:
             data: EvalData[Z] = []
             try:
                 instance_data = instance.model_dump()

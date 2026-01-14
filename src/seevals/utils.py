@@ -162,14 +162,24 @@ def load_eval_dataset(path: str) -> List[types.EvalData[LT]]:
 def eval_data_to_examples(
     eval_dataset: List[types.EvalData[LT]],
     criteria: types.Criteria,
-    include_outputs: bool = True
+    include_outputs: bool = True,
+    input_filter: Optional[Callable[[dict], dict]] = None
 ) -> List[dspy.Example]:
-    """Convert EvalData to dspy.Example."""
+    """Convert EvalData to dspy.Example.
+
+    Args:
+        input_filter: Optional function to filter/transform raw_data before passing to examples.
+                      Useful for excluding fields the model shouldn't see (e.g., labels).
+    """
     examples = []
     for eval_data in eval_dataset:
+        input_data = eval_data.raw_data
+        if input_filter:
+            input_data = input_filter(input_data)
+
         example_kwargs = {
             'criteria': criteria,
-            'input': eval_data.raw_data
+            'input': input_data
         }
 
         if include_outputs and eval_data.data:
@@ -197,8 +207,14 @@ def make_train_test_split(examples: List[dspy.Example], split_ratio: float = 0.8
     return train_examples, test_examples
 
 
-def make_train_test_split_from_eval_dataset(eval_dataset: List[types.EvalData[LT]], criteria: types.Criteria, split_ratio: float = 0.8) -> types.Tuple[List[dspy.Example], List[dspy.Example]]:
-    examples = eval_data_to_examples(eval_dataset, criteria)
+def make_train_test_split_from_eval_dataset(
+    eval_dataset: List[types.EvalData[LT]],
+    criteria: types.Criteria,
+    split_ratio: float = 0.8,
+    input_filter: Optional[Callable[[dict], dict]] = None
+) -> types.Tuple[List[dspy.Example], List[dspy.Example]]:
+    examples = eval_data_to_examples(
+        eval_dataset, criteria, input_filter=input_filter)
     train_examples, test_examples = make_train_test_split(
         examples, split_ratio)
     return train_examples, test_examples
@@ -240,3 +256,13 @@ def make_sample_criteria(num_samples: int, upper_bound: float, lower_bound: floa
         confidence=confidence,
         error_margin=get_hoeffding_error_margin(confidence, num_samples)
     )
+
+
+def get_response_data_list[T](
+    response: types.ResponseData[pydantic.RootModel[List[T]]]
+) -> List[T]:
+    return response.data[0].root
+
+
+def clone_dataset[T](dataset: List[types.EvalData[T]]) -> List[types.EvalData[T]]:
+    return list(map(lambda x: x.model_copy(deep=True), dataset))
