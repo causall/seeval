@@ -71,10 +71,10 @@ def _generate_from_schema(schema: Dict, defs: Dict) -> any:
         return ""
 
     elif schema_type == 'integer':
-        return 0
+        return schema.get('minimum', schema.get('exclusiveMinimum', 0))
 
     elif schema_type == 'number':
-        return 0.0
+        return schema.get('minimum', schema.get('exclusiveMinimum', 0.0))
 
     elif schema_type == 'boolean':
         return False

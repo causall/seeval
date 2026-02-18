@@ -132,7 +132,7 @@ class EvalItemConfig(pydantic.BaseModel):
 class EvalInternalConfig(pydantic.BaseModel):
     path: str = pydantic.Field(
         default="", description="The json path for the evaluation")
-    EvalItemConfig: EvalItemConfig = pydantic.Field(
+    eval_item_config: EvalItemConfig = pydantic.Field(
         default=None, description="The configuration for the evaluation")
 
 
@@ -164,14 +164,14 @@ class EvalConfig(pydantic.BaseModel):
             data: EvalData[Z] = []
             try:
                 instance_data = instance.model_dump()
-                for config in self.config.root:
+                for config in self.config:
                     tracking_path = config.path
-                    cfg = config.EvalItemConfig
+                    cfg = config.eval_item_config
                     jsonpath_expr = jp.parse(tracking_path)
                     matches = jsonpath_expr.find(instance_data)
                     if len(matches) != 1:
                         raise ValueError(
-                            f"Expected 1 match for path {path} but got {len(matches)}, {matches}")
+                            f"Expected 1 match for path {tracking_path} but got {len(matches)}, {matches}")
                     items = []
                     value = matches[0].value
                     if cfg.sample is not None:
@@ -182,13 +182,13 @@ class EvalConfig(pydantic.BaseModel):
                         for i, v in enumerate(values):
                             value = v
                             items.append(EvalItem(
-                                id=f"{path}[{i}]",
+                                id=f"{tracking_path}[{i}]",
                                 sample=cfg.sample,
                                 view=cfg.view,
                                 data=v))
                     else:
                         items.append(EvalItem(
-                            id=path,
+                            id=tracking_path,
                             sample=None,
                             view=cfg.view,
                             data=value))
@@ -222,9 +222,9 @@ class EvalConfig(pydantic.BaseModel):
         for v in view.views:
             self.path_exists_cache[v] = True
 
-        self.config.root.append(EvalInternalConfig(
+        self.config.append(EvalInternalConfig(
             path=path,
-            EvalItemConfig=EvalItemConfig(
+            eval_item_config=EvalItemConfig(
                 sample=sample,
                 view=view,
                 rubric=rubric
