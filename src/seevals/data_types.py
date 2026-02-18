@@ -129,11 +129,22 @@ class EvalItemConfig(pydantic.BaseModel):
         default=None, description="The rubric for the evaluation")
 
 
+class EvalInternalConfig(pydantic.BaseModel):
+    path: str = pydantic.Field(
+        default="", description="The json path for the evaluation")
+    EvalItemConfig: EvalItemConfig = pydantic.Field(
+        default=None, description="The configuration for the evaluation")
+
+
+class EvalInternalConfigList(pydantic.RootModel):
+    root: List[EvalInternalConfig]
+
+
 class EvalConfig(pydantic.BaseModel):
     seed: int = pydantic.Field(
         default=42, description="The seed for the random number generator")
-    config: Dict[str, EvalItemConfig] = pydantic.Field(
-        default={}, description="The configuration for the evaluation")
+    config: EvalInternalConfigList = pydantic.Field(
+        default=[], description="The configuration for the evaluation")
     path_exists_cache: Dict[str, bool] = pydantic.Field(
         default={}, description="The cache for the path existence")
     class_type: Type[Z] = pydantic.Field(
@@ -153,9 +164,10 @@ class EvalConfig(pydantic.BaseModel):
             data: EvalData[Z] = []
             try:
                 instance_data = instance.model_dump()
-                for path, cfg in self.config.items():
-                    tracking_path = path
-                    jsonpath_expr = jp.parse(path)
+                for config in self.config.root:
+                    tracking_path = config.path
+                    cfg = config.EvalItemConfig
+                    jsonpath_expr = jp.parse(tracking_path)
                     matches = jsonpath_expr.find(instance_data)
                     if len(matches) != 1:
                         raise ValueError(
@@ -210,11 +222,14 @@ class EvalConfig(pydantic.BaseModel):
         for v in view.views:
             self.path_exists_cache[v] = True
 
-        self.config[path] = EvalItemConfig(
-            sample=sample,
-            view=view,
-            rubric=rubric
-        )
+        self.config.root.append(EvalInternalConfig(
+            path=path,
+            EvalItemConfig=EvalItemConfig(
+                sample=sample,
+                view=view,
+                rubric=rubric
+            )
+        ))
         return self
 
 
