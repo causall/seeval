@@ -5,6 +5,7 @@ from dspy.utils.callback import BaseCallback
 import pdb
 import pydantic
 import json
+import argparse
 from typing import Literal, TypedDict, Type, Tuple, Dict, Iterable, ParamSpec, TypeVar, Generic, List, Callable, Optional, Protocol
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import random
@@ -15,11 +16,11 @@ import seevals.agents as agents
 from seevals.execute import run_parallel
 import seevals.data_types as types
 from seevals.agents import ScenarioArgs
-import experiment.utils as exp_utils
-import experiment.data_types as exp_types
-import experiment.data as exp_data
-from experiment.experiment import get_evaluation_criteria, setup_experiment_lm, run_experiment, build_experiment_instances
-from experiment.storage import (
+import experiment.sentiment.utils as exp_utils
+import experiment.sentiment.data_types as exp_types
+import experiment.sentiment.data as exp_data
+from experiment.sentiment.core import get_evaluation_criteria, setup_experiment_lm, run_experiment, build_experiment_instances
+from experiment.sentiment.storage import (
     create_experiment_run,
     save_optimized_program,
     save_experiment_result,
@@ -27,20 +28,40 @@ from experiment.storage import (
 )
 
 
+def print_optimized_instructions(filepath: str):
+    """Pretty print the optimized instructions from a saved program file."""
+    with open(filepath, 'r') as f:
+        data = json.load(f)
+
+    # Extract instructions from the nested structure
+    instructions = data.get('grader.predict', {}).get(
+        'signature', {}).get('instructions')
+
+    if instructions:
+        print("\n" + "="*80)
+        print("OPTIMIZED INSTRUCTIONS")
+        print("="*80 + "\n")
+        print(instructions)
+        print("\n" + "="*80 + "\n")
+    else:
+        print(f"No instructions found in {filepath}")
+
+
 def generate_experiment_instances(evaluation_dataset, noise_params: List[float]):
 
     personas = exp_data.generate_personas()
+    optimization = ["light"]
 
     pexp_instances = build_experiment_instances(evaluation_dataset, personas.positive,
-                                                noise_params, ["light"])
+                                                noise_params, optimization)
     nexp_instances = build_experiment_instances(evaluation_dataset, personas.negative,
-                                                noise_params, ["light"])
+                                                noise_params, optimization)
     nex_instances = build_experiment_instances(evaluation_dataset, personas.neutral,
-                                               noise_params, ["light"])
+                                               noise_params, optimization)
     ex_instances = build_experiment_instances(evaluation_dataset, personas.extreme,
-                                              noise_params, ["light"])
+                                              noise_params, optimization)
     eq_instances = build_experiment_instances(evaluation_dataset, personas.equal,
-                                              noise_params, ["light"])
+                                              noise_params, optimization)
     return {
         "positive": pexp_instances,
         "negative": nexp_instances,
@@ -54,6 +75,8 @@ def main():
     try:
         noise_params = [0.0, 0.1, 0.2, 0.3]
         experiment_config = exp_types.ExperimentConfig()
+        experiment_config.model = "openai/gemma-3-27b"
+        experiment_config.model = "openai/llama4-maverick"
         # setup the experiment lm
         lm = setup_experiment_lm(experiment_config.model,
                                  experiment_config.api_base, experiment_config.api_key)
@@ -115,4 +138,13 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description='Sentiment experiment runner')
+    parser.add_argument('--print-instructions', '-p', type=str, metavar='FILE',
+                        help='Pretty print optimized instructions from a saved program file')
+
+    args = parser.parse_args()
+
+    if args.print_instructions:
+        print_optimized_instructions(args.print_instructions)
+    else:
+        main()

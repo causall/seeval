@@ -1,0 +1,26 @@
+from typing import List
+import pydantic
+
+
+class Movie(pydantic.BaseModel):
+    title: str = pydantic.Field(description="The title of the movie")
+    year: int = pydantic.Field(description="The year of the movie")
+    genres: List[str] = pydantic.Field(description="The genres of the movie")
+
+
+class MovieRating(Movie):
+    approval: float = pydantic.Field(
+        description="The group approval rate of the movie from 0.0 - 1.0", ge=0.0, le=1.0, decimal_places=2)
+    median_rating: float = pydantic.Field(
+        description="The median rating of the movie from 1.0 - 5.0 in 0.5 increments", ge=1.0, le=5.0, decimal_places=1)
+
+
+class FullMovieRating(MovieRating):
+    loo_approval: float = pydantic.Field(
+        description="The leave-one-out approval rate of the movie from 0.0 - 1.0", ge=0.0, le=1.0, decimal_places=2)
+    global_approval: float = pydantic.Field(
+        description="The global approval rate of the movie from 0.0 - 1.0", ge=0.0, le=1.0, decimal_places=2)
+    avg_rating: float = pydantic.Field(
+        description="The average rating of the movie from 1.0 - 5.0 in 0.5 increments", ge=1.0, le=5.0, decimal_places=1)
+    std_deviation: float = pydantic.Field(
+        description="The standard deviation of the movie's ratings", ge=0.0, decimal_places=2)

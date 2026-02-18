@@ -10,7 +10,7 @@ from typing import List, Optional
 
 import dspy
 
-from experiment.data_types import (
+from experiment.sentiment.data_types import (
     ExperimentConfig,
     ExperimentInstance,
     ExperimentResult,
@@ -100,8 +100,8 @@ def save_optimized_program(
     filename = _get_program_filename(persona_name, instance)
     program_path = run_dir / "optimized" / filename
 
-    # Save using dspy's native save (state only, JSON format)
-    program.save(str(program_path), save_program=False)
+    # Save the full optimized program
+    program.save(str(program_path))
 
     # Return relative path from run directory
     return f"optimized/{filename}"

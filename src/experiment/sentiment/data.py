@@ -1,9 +1,9 @@
 import random
 from typing import List, Literal
 import dspy
-from experiment import agents as exp_agents
-from experiment import data_types as exp_types
-from experiment import utils as exp_utils
+from experiment.sentiment import agents as exp_agents
+from experiment.sentiment import data_types as exp_types
+from experiment.sentiment import utils as exp_utils
 from seevals import agents, data_types as types
 from seevals import utils
 from seevals.execute import run_parallel
@@ -136,7 +136,7 @@ def build_gepa_grader(
     grading_module = agents.make_semantic_grader(exp_types.Headline)
 
     teleprompter = dspy.GEPA(
-        auto="light",
+        auto=optimization,
         reflection_lm=lm,
         metric=sentiment_metric,
         num_threads=15,

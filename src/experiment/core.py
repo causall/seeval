@@ -1,10 +1,12 @@
+from collections.abc import Callable
 from itertools import product
-from typing import List
+from typing import List, Literal, Optional
+from attr import dataclass
 import dspy
 import seevals.data_types as types
 import experiment.utils as exp_utils
 import experiment.data_types as exp_types
-import experiment.data as exp_data
+# import experiment.sentiment.data as exp_data
 
 
 def get_evaluation_criteria() -> types.Criteria:
@@ -15,6 +17,7 @@ def get_evaluation_criteria() -> types.Criteria:
 
 def setup_experiment_lm(model: str, api_base: str, api_key: str):
     # 3. Set the callback to DSPy setting so it will be applied to program execution
+    # exp_utils.AgentLoggingCallback()])
     dspy.configure(callbacks=[exp_utils.AgentLoggingCallback()])
 
     lm = dspy.LM(
@@ -27,10 +30,63 @@ def setup_experiment_lm(model: str, api_base: str, api_key: str):
 
     return lm
 
+# you might want to get and apply the score function
 
-def run_experiment(lm: dspy.LM, evaluation_dataset: List[types.EvalData[exp_types.SentimentHeadline]],
-                   test_eval_dataset: List[types.EvalData[exp_types.SentimentHeadline]],
-                   cfg: exp_types.ExperimentInstance) -> (dspy.Module, dspy.GEPA):
+
+@dataclass
+class AutomatedRubricScoring:
+    rubric: Optional[types.Rubric] = None
+    score: exp_types.GetScoreFromDastasetFunction
+
+
+def apply_score_to_eval_data[T](eval_data: List[types.EvalData[T]], get_score: exp_types.GetScoreFromDastasetFunction):
+    for item in eval_data:
+        item.data[0].items[0].score = get_score(item.raw_data)
+    return eval_data
+
+
+"""
+def apply_automated_scoring_to_eval_data[T](eval_data: List[types.EvalData[T]], automated_scoring: List[AutomatedRubricScoring]):
+    for item in eval_data:
+"""
+
+
+def create_eval_from_data2[T](data: List[T], scoring: List[AutomatedRubricScoring], seed: int) -> types.EvalData[T]:
+    eval = types.EvalDatasetBuilder.build(T)
+    for scoring in scoring:
+        eval.add("$", None, types.View(views=["$"]), scoring.rubric)
+    eval_data = eval.apply(data, seed=seed)
+    apply_score_to_eval_data(eval_data, rubrics)
+
+
+def create_eval_from_data[T](data: List[T], get_score: exp_types.GetScoreFromDastasetFunction, seed: int) -> exp_types.EvaluationDatasets[T]:
+    eval = types.EvalDatasetBuilder.build(T)
+    eval.add("$", None, types.View(views=["$"]), types.Rubric(
+        id=-1, desc="Automatically scored from dataset"))
+    eval_data = eval.apply(data, seed=seed)
+    return apply_score_to_eval_data(eval_data, get_score)
+
+
+"""
+def get_experiment_data(
+    evaluation_dataset: List[types.EvalData[exp_types.SentimentHeadline]],
+    criteria: types.Criteria,
+    split_ratio: float = 0.8,
+    input_filter: Optional[Callable[[dict], dict]] = None
+) -> exp_types.DatasetSplit:
+    train_examples, test_examples = exp_utils.make_train_test_split_from_eval_dataset(
+        evaluation_dataset,
+        criteria,
+        split_ratio,
+        input_filter=input_filter,
+    )
+    return exp_types.DatasetSplit(train=train_examples, test=test_examples)
+"""
+
+"""
+def run_experiment[T](datasets: exp_types.EvaluationDatasets[T],
+                      cfg: exp_types.RunExperimentConfig[T]) -> tuple[dspy.Module, dspy.GEPA, float, float]:
+
     dataset = exp_data.apply_persona_evaluation_to_dataset(
         evaluation_dataset, cfg.persona, cfg.noise, cfg.seed)
     test_dataset = exp_data.apply_persona_evaluation_to_dataset(
@@ -53,8 +109,9 @@ def run_experiment(lm: dspy.LM, evaluation_dataset: List[types.EvalData[exp_type
 
     optimized_score = baseline_evaluate(optimized_program)
     return optimized_program, teleprompter, baseline_score, optimized_score
+"""
 
-
+"""
 def build_experiment_instances(evaluation_dataset, persona: exp_types.PersonaRanking, noises: [float], optimizations: [Literal["light", "medium", "heavy"]]):
     return [exp_types.ExperimentInstance(
         persona=p,
@@ -63,3 +120,4 @@ def build_experiment_instances(evaluation_dataset, persona: exp_types.PersonaRan
         seed=exp_types.ExperimentConfig().seed,
         optimization=optimization
     ) for p, noise, optimization in product([persona], noises, optimizations)]
+"""

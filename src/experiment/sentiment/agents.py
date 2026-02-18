@@ -1,5 +1,5 @@
 import dspy
-from experiment.data_types import SentimentGenerationArgs, SentimentHeadlineOutput
+from experiment.sentiment.data_types import SentimentGenerationArgs, SentimentHeadlineOutput
 
 
 class SentimentHeadlineGenerator(dspy.Signature):
