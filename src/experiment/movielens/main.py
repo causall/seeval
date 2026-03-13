@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 from seevals import agents
 from seevals.execute import run_parallel
 from seevals.utils import make_train_test_split_from_eval_dataset
+from dspy.teleprompt.gepa.gepa_utils import ScoreWithFeedback
 
 import seevals.data_types as types
 
@@ -256,7 +257,8 @@ def create_movie_rating_metrics(data: pd.DataFrame, sample_results: List[Systema
 
 def run_experiment(config: SetupConfig):
     """Run the experiment with the given config"""
-    experiment_config = ExperimentConfig(metadata="movie_rating")
+    experiment_config = ExperimentConfig(
+        metadata="movie_rating", seed=config.seed)
     # setup the experiment lm
     lm = setup_experiment_lm(experiment_config.model,
                              experiment_config.api_base, experiment_config.api_key)
@@ -266,7 +268,7 @@ def run_experiment(config: SetupConfig):
     cache = establish_cache()
 
     movie_rating_metrics = create_movie_rating_metrics(cache.filtered_ratings,
-                                                       sample_results[0:1], rng, config.exp_valid_movie_count)
+                                                       sample_results[-1:], rng, config.exp_valid_movie_count)
 
     def add_metadata(metrics: pd.DataFrame, movies: pd.DataFrame) -> pd.DataFrame:
         return metrics.merge(movies[['movieId', 'title', 'year', 'genres']], on='movieId', how='left')
@@ -326,14 +328,34 @@ def run_experiment(config: SetupConfig):
     grading_module = agents.make_semantic_grader(
         FullMovieRating, "You are able to guess at the preference of cohort id: 2788")
 
-    def movie_rating_metric(gold: dspy.Example, pred: dspy.Prediction, trace=None, frac=None, return_results=None) -> float:
+    def movie_rating_metric(gold: dspy.Example, pred: dspy.Prediction, trace=None, frac=None, return_results=None) -> ScoreWithFeedback:
         approval_id = criteria.rubrics[1].id
+        median_rating_id = criteria.rubrics[0].id
         score = 0.0
+        feedback = ""
+        median_rating_feedback = ""
         pred_map = {s.rubric_id: s for s in pred.scores[0]}
         for s in gold.scores[0]:
             if s.rubric_id == approval_id and approval_id in pred_map:
-                score = 1.0 - abs(s.score - pred_map[approval_id].score)
-        return score
+                diff = s.score - pred_map[approval_id].score
+                score = 1.0 - abs(diff)
+                if diff < 0:
+                    feedback = "The approval rate should be lower. You were different by {diff:.2f}."
+                elif diff > 0:
+                    feedback = "The approval rate should be higher. You were different by {diff:.2f}."
+                else:
+                    feedback = ""
+            if s.rubric_id == median_rating_id and median_rating_id in pred_map:
+                diff = s.score - pred_map[median_rating_id].score
+                if diff < 0:
+                    median_rating_feedback = "The median rating should be higher. You were different by {diff:.2f}."
+                elif diff > 0:
+                    median_rating_feedback = "The median rating should be lower. You were different by {diff:.2f}."
+                else:
+                    median_rating_feedback = ""
+
+        return ScoreWithFeedback(score=score, feedback=f"{feedback} {median_rating_feedback}")
+        # .ScoreWithFeedback(score=score, feedback=feedback)
 
     teleprompter = dspy.GEPA(
         auto="light",
