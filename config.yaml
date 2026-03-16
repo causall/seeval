@@ -1,4 +1,27 @@
+litellm_settings:
+  cache: True
+  cache_params:
+    type: disk
+    disk_cache_dir: "./.litellm_cache" # Defaults to "./.litellm_cache" if not set
 model_list:
+  - model_name: qwen3-235b
+    litellm_params:
+      model: bedrock/qwen.qwen3-235b-a22b-2507-v1:0
+      aws_access_key_id: os.environ/AWS_ACCESS_KEY_ID
+      aws_secret_access_key: os.environ/AWS_SECRET_ACCESS_KEY
+      aws_region_name: os.environ/CUSTOM_AWS_REGION_NAME
+      drop_params: true
+      tpm_limit: 400000000
+      rpm_limit: 9000
+  - model_name: gemma-3-27b
+    litellm_params:
+      model: bedrock/google.gemma-3-27b-it
+      aws_access_key_id: os.environ/AWS_ACCESS_KEY_ID
+      aws_secret_access_key: os.environ/AWS_SECRET_ACCESS_KEY
+      aws_region_name: os.environ/CUSTOM_AWS_REGION_NAME
+      drop_params: true
+    tpm_limit: 4000000
+    rpm_limit: 2000
   - model_name: llama4-maverick
     litellm_params:
       model: meta_llama/Llama-4-Maverick-17B-128E-Instruct-FP8
@@ -24,6 +47,15 @@ model_list:
       aws_region_name: os.environ/CUSTOM_AWS_REGION_NAME
     tpm_limit: 4000000
     rpm_limit: 2000
+  - model_name: bedrock-sonnet-46 # Alias for DSPy to use
+    litellm_params:
+      model: bedrock/us.anthropic.claude-sonnet-4-6
+      region_name: us-west-2 # AWS region
+      aws_access_key_id: os.environ/AWS_ACCESS_KEY_ID
+      aws_secret_access_key: os.environ/AWS_SECRET_ACCESS_KEY
+      aws_region_name: os.environ/CUSTOM_AWS_REGION_NAME
+    tpm_limit: 1000000
+    rpm_limit: 200
   - model_name: bedrock-sonnet # Alias for DSPy to use
     litellm_params:
       model: bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0

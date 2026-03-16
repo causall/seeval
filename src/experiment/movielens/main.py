@@ -258,7 +258,7 @@ def create_movie_rating_metrics(data: pd.DataFrame, sample_results: List[Systema
 def run_experiment(config: SetupConfig):
     """Run the experiment with the given config"""
     experiment_config = ExperimentConfig(
-        metadata="movie_rating", seed=config.seed)
+        model="openai/qwen3-235b", metadata="movie_rating", seed=config.seed)
     # setup the experiment lm
     lm = setup_experiment_lm(experiment_config.model,
                              experiment_config.api_base, experiment_config.api_key)
@@ -268,7 +268,7 @@ def run_experiment(config: SetupConfig):
     cache = establish_cache()
 
     movie_rating_metrics = create_movie_rating_metrics(cache.filtered_ratings,
-                                                       sample_results[-1:], rng, config.exp_valid_movie_count)
+                                                       sample_results[-3:-2], rng, config.exp_valid_movie_count)
 
     def add_metadata(metrics: pd.DataFrame, movies: pd.DataFrame) -> pd.DataFrame:
         return metrics.merge(movies[['movieId', 'title', 'year', 'genres']], on='movieId', how='left')
@@ -340,28 +340,29 @@ def run_experiment(config: SetupConfig):
                 diff = s.score - pred_map[approval_id].score
                 score = 1.0 - abs(diff)
                 if diff < 0:
-                    feedback = "The approval rate should be lower. You were different by {diff:.2f}."
+                    feedback = f"The approval rate should be lower. You were different by {diff:.2f}."
                 elif diff > 0:
-                    feedback = "The approval rate should be higher. You were different by {diff:.2f}."
+                    feedback = f"The approval rate should be higher. You were different by {diff:.2f}."
                 else:
                     feedback = ""
             if s.rubric_id == median_rating_id and median_rating_id in pred_map:
                 diff = s.score - pred_map[median_rating_id].score
                 if diff < 0:
-                    median_rating_feedback = "The median rating should be higher. You were different by {diff:.2f}."
+                    median_rating_feedback = f"The median rating should be higher. You were different by {diff:.2f}."
                 elif diff > 0:
-                    median_rating_feedback = "The median rating should be lower. You were different by {diff:.2f}."
+                    median_rating_feedback = f"The median rating should be lower. You were different by {diff:.2f}."
                 else:
                     median_rating_feedback = ""
 
         return ScoreWithFeedback(score=score, feedback=f"{feedback} {median_rating_feedback}")
         # .ScoreWithFeedback(score=score, feedback=feedback)
 
+    time_start = time.time()
     teleprompter = dspy.GEPA(
         auto="light",
         reflection_lm=lm,
         metric=movie_rating_metric,
-        num_threads=15,
+        num_threads=30,
         track_stats=True,
     )
 
@@ -376,6 +377,8 @@ def run_experiment(config: SetupConfig):
     )
 
     optimized_score = baseline_evaluate(optimized_program)
+    time_end = time.time()
+    print(f"Time taken: {time_end - time_start} seconds")
     import pdb
     pdb.set_trace()
 
