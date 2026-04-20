@@ -255,82 +255,124 @@ def create_movie_rating_metrics(data: pd.DataFrame, sample_results: List[Systema
     return datasets
 
 
-def run_experiment(config: SetupConfig):
-    """Run the experiment with the given config"""
-    experiment_config = ExperimentConfig(
-        model="openai/qwen3-235b", metadata="movie_rating", seed=config.seed)
-    # setup the experiment lm
-    lm = setup_experiment_lm(experiment_config.model,
-                             experiment_config.api_base, experiment_config.api_key)
-    dspy.configure(lm=lm)
-    rng = random.Random(config.seed)
-    sample_results = gd.load_sample_results_from_disk(Path(config.output_file))
-    cache = establish_cache()
+def get_movie_rating_criteria() -> types.Criteria:
+    """Fixed evaluation criteria for the movielens experiment."""
+    return types.Criteria(rubrics=[
+        types.Rubric(
+            id=1,
+            desc="The median rating of movie cohort id: 2788",
+            scale="0.5 is the lowest rating, 5.0 is the highest rating",
+            ge=0.5, le=5.0,
+        ),
+        types.Rubric(
+            id=2,
+            desc="The percentage of movie cohort id: 2788 that like this significantly more than other movies",
+            scale="0.0 - 1.0",
+            ge=0.0, le=1.0,
+        ),
+    ])
 
-    movie_rating_metrics = create_movie_rating_metrics(cache.filtered_ratings,
-                                                       sample_results[-3:-2], rng, config.exp_valid_movie_count)
 
-    def add_metadata(metrics: pd.DataFrame, movies: pd.DataFrame) -> pd.DataFrame:
-        return metrics.merge(movies[['movieId', 'title', 'year', 'genres']], on='movieId', how='left')
+def _movie_rating_input_filter(data) -> dict:
+    return {"title": data["title"], "year": data["year"], "genres": data["genres"]}
 
-    movie_rating_training_datasets = create_dataset_from_metrics(
-        add_metadata(movie_rating_metrics[0].training_metrics, cache.movies), "train")
-    movie_rating_validation_datasets = create_dataset_from_metrics(
-        add_metadata(movie_rating_metrics[0].validation_metrics, cache.movies), "val")
-    movie_rating_test_datasets = create_dataset_from_metrics(
-        add_metadata(movie_rating_metrics[0].test_metrics, cache.movies), "test")
 
-    def get_median_score(data: FullMovieRating) -> int:
-        return data['median_rating']
+def _get_median_score(data) -> float:
+    return data['median_rating']
 
-    def get_avg_score(data: FullMovieRating) -> int:
-        return data['avg_rating']
 
-    def get_global_approval_score(data: FullMovieRating) -> int:
-        return data['global_approval']
+def _get_global_approval_score(data) -> float:
+    return data['global_approval']
 
-    def get_loo_approval_score(data: FullMovieRating) -> int:
-        return data['loo_approval']
 
-    training_automated_scoring = [
-        AutomatedRubricScoring(rubric=types.Rubric(
-            id=1, desc="Median Rating"), score=get_median_score),
-        AutomatedRubricScoring(rubric=types.Rubric(
-            id=2, desc="LOO Approval"), score=get_loo_approval_score),
-    ]
-    test_validation_automated_scoring = [
-        AutomatedRubricScoring(rubric=types.Rubric(
-            id=1, desc="Median Rating"), score=get_median_score),
-        AutomatedRubricScoring(rubric=types.Rubric(
-            id=2, desc="global Approval"), score=get_global_approval_score),
+def _get_loo_approval_score(data) -> float:
+    return data['loo_approval']
+
+
+def _training_scoring() -> List[AutomatedRubricScoring]:
+    return [
+        AutomatedRubricScoring(rubric=types.Rubric(id=1, desc="Median Rating"),
+                               score=_get_median_score),
+        AutomatedRubricScoring(rubric=types.Rubric(id=2, desc="LOO Approval"),
+                               score=_get_loo_approval_score),
     ]
 
-    criteria = types.Criteria(rubrics=[types.Rubric(id=1, desc="The median rating of movie cohort id: 2788", scale="0.5 is the lowest rating, 5.0 is the highest rating", ge=0.5, le=5.0),
-                                       types.Rubric(id=2, desc="The percentage of movie cohort id: 2788 that like this significantly more than other movies", scale="0.0 - 1.0", ge=0.0, le=1.0)])
 
-    def input_filter(data: FullMovieRating) -> dict:
-        return {"title": data["title"], "year": data["year"], "genres": data["genres"]}
+def _test_validation_scoring() -> List[AutomatedRubricScoring]:
+    return [
+        AutomatedRubricScoring(rubric=types.Rubric(id=1, desc="Median Rating"),
+                               score=_get_median_score),
+        AutomatedRubricScoring(rubric=types.Rubric(id=2, desc="global Approval"),
+                               score=_get_global_approval_score),
+    ]
 
+
+@dataclass
+class SplitDatasets:
+    train: List[FullMovieRating]
+    validation: List[FullMovieRating]
+    test: List[FullMovieRating]
+
+
+def build_split_datasets(cache: Cache, sample_result, rng: random.Random,
+                         exp_valid_movie_count: int) -> SplitDatasets:
+    """Build FullMovieRating lists for train/val/test splits for a single cohort.
+
+    Returns None if the sample does not meet the ``exp_valid_movie_count`` threshold.
+    """
+    metrics_list = create_movie_rating_metrics(
+        cache.filtered_ratings, [sample_result], rng, exp_valid_movie_count)
+    if not metrics_list:
+        return None
+
+    metrics = metrics_list[0]
+
+    def add_metadata(df: pd.DataFrame) -> pd.DataFrame:
+        return df.merge(
+            cache.movies[['movieId', 'title', 'year', 'genres']],
+            on='movieId', how='left')
+
+    train = create_dataset_from_metrics(add_metadata(metrics.training_metrics), "train")
+    validation = create_dataset_from_metrics(add_metadata(metrics.validation_metrics), "val")
+    test = create_dataset_from_metrics(add_metadata(metrics.test_metrics), "test")
+    return SplitDatasets(train=train, validation=validation, test=test)
+
+
+@dataclass
+class SplitExamples:
+    train: List[dspy.Example]
+    validation: List[dspy.Example]
+    test: List[dspy.Example]
+
+
+def build_split_examples(splits: SplitDatasets, criteria: types.Criteria,
+                         seed: int) -> SplitExamples:
+    """Convert FullMovieRating splits into scored, input-filtered dspy.Examples."""
     train_set = create_eval_from_data2(
-        movie_rating_training_datasets, training_automated_scoring, config.seed, FullMovieRating)
+        splits.train, _training_scoring(), seed, FullMovieRating)
     validation_set = create_eval_from_data2(
-        movie_rating_validation_datasets, test_validation_automated_scoring, config.seed, FullMovieRating)
+        splits.validation, _test_validation_scoring(), seed, FullMovieRating)
     test_set = create_eval_from_data2(
-        movie_rating_test_datasets, test_validation_automated_scoring, config.seed, FullMovieRating)
+        splits.test, _test_validation_scoring(), seed, FullMovieRating)
 
-    validation_examples, _ = make_train_test_split_from_eval_dataset(
-        validation_set, criteria, 1, input_filter)
     train_examples, _ = make_train_test_split_from_eval_dataset(
-        train_set, criteria, 1, input_filter)
+        train_set, criteria, 1, _movie_rating_input_filter)
+    validation_examples, _ = make_train_test_split_from_eval_dataset(
+        validation_set, criteria, 1, _movie_rating_input_filter)
     test_examples, _ = make_train_test_split_from_eval_dataset(
-        test_set, criteria, 1, input_filter)
+        test_set, criteria, 1, _movie_rating_input_filter)
+    return SplitExamples(train=train_examples,
+                         validation=validation_examples,
+                         test=test_examples)
 
-    grading_module = agents.make_semantic_grader(
-        FullMovieRating, "You are able to guess at the preference of cohort id: 2788")
 
-    def movie_rating_metric(gold: dspy.Example, pred: dspy.Prediction, trace=None, frac=None, return_results=None) -> ScoreWithFeedback:
-        approval_id = criteria.rubrics[1].id
-        median_rating_id = criteria.rubrics[0].id
+def make_movie_rating_metric(criteria: types.Criteria):
+    """Build the GEPA metric closure for the given criteria."""
+    approval_id = criteria.rubrics[1].id
+    median_rating_id = criteria.rubrics[0].id
+
+    def movie_rating_metric(gold: dspy.Example, pred: dspy.Prediction,
+                            trace=None, frac=None, return_results=None) -> ScoreWithFeedback:
         score = 0.0
         feedback = ""
         median_rating_feedback = ""
@@ -354,35 +396,65 @@ def run_experiment(config: SetupConfig):
                 else:
                     median_rating_feedback = ""
 
-        return ScoreWithFeedback(score=score, feedback=f"{feedback} {median_rating_feedback}")
-        # .ScoreWithFeedback(score=score, feedback=feedback)
+        return ScoreWithFeedback(score=score,
+                                 feedback=f"{feedback} {median_rating_feedback}")
+
+    return movie_rating_metric
+
+
+def run_gepa_experiment(lm, examples: SplitExamples, criteria: types.Criteria):
+    """Run baseline + GEPA optimization on a prepared example split."""
+    grading_module = agents.make_semantic_grader(
+        FullMovieRating, "You are able to guess at the preference of cohort id: 2788")
+    metric = make_movie_rating_metric(criteria)
 
     time_start = time.time()
     teleprompter = dspy.GEPA(
         auto="light",
         reflection_lm=lm,
-        metric=movie_rating_metric,
+        metric=metric,
         num_threads=30,
         track_stats=True,
     )
 
-    baseline_evaluate = dspy.Evaluate(devset=test_examples, metric=movie_rating_metric,
-                                      num_threads=10, display_progress=True, display_table=0, max_errors=999)
+    baseline_evaluate = dspy.Evaluate(
+        devset=examples.test, metric=metric, num_threads=10,
+        display_progress=True, display_table=0, max_errors=999)
 
     baseline_score = baseline_evaluate(grading_module)
     optimized_program = teleprompter.compile(
         grading_module,
-        trainset=train_examples,
-        valset=validation_examples,
+        trainset=examples.train,
+        valset=examples.validation,
     )
 
     optimized_score = baseline_evaluate(optimized_program)
     time_end = time.time()
     print(f"Time taken: {time_end - time_start} seconds")
-    import pdb
-    pdb.set_trace()
 
     return optimized_program, teleprompter, baseline_score, optimized_score
+
+
+def run_experiment(config: SetupConfig):
+    """Run the experiment with the given config"""
+    experiment_config = ExperimentConfig(
+        model="openai/qwen3-235b", metadata="movie_rating", seed=config.seed)
+    lm = setup_experiment_lm(experiment_config.model,
+                             experiment_config.api_base, experiment_config.api_key)
+    dspy.configure(lm=lm)
+    rng = random.Random(config.seed)
+    sample_results = gd.load_sample_results_from_disk(Path(config.output_file))
+    cache = establish_cache()
+
+    splits = build_split_datasets(
+        cache, sample_results[-3], rng, config.exp_valid_movie_count)
+    if splits is None:
+        raise RuntimeError(
+            "Selected sample_result does not meet exp_valid_movie_count threshold")
+
+    criteria = get_movie_rating_criteria()
+    examples = build_split_examples(splits, criteria, config.seed)
+    return run_gepa_experiment(lm, examples, criteria)
 
 
 """
