@@ -52,6 +52,16 @@ class Criteria(pydantic.BaseModel):
     """
 
 
+class DatumCriteria(pydantic.BaseModel):
+    rubric: Rubric
+    json_path: str = ""
+    score: float
+
+
+class DataCriteria(pydantic.BaseModel):
+    rubrics: List[DatumCriteria]
+
+
 class ScoredRubric(pydantic.BaseModel):
     rubric_id: int = pydantic.Field(description="The id of the rubric")
     score: float = pydantic.Field(

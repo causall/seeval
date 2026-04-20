@@ -27,6 +27,9 @@ dependencies = [
   "pandas",
 ]
 
+[project.scripts]
+seeval = "cli.main:main"
+
 [project.urls]
 Source = "https://github.com/causall/seevals"
 
