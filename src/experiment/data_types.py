@@ -13,7 +13,7 @@ type GetEvaluationCriteria = Callable[[Z], types.Criteria]
 
 
 class ExperimentConfig[T](pydantic.BaseModel):
-    model: str = "openai/bedrock-sonnet-37"
+    model: str = "openai/bedrock-sonnet-46"
     api_base: str = "http://localhost:4000"
     api_key: str = "noop"
     seed: int = 42
