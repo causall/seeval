@@ -1,5 +1,6 @@
 from pathlib import Path
 import argparse
+import logging
 import random
 import time
 from typing import List, Literal
@@ -22,6 +23,25 @@ from dspy.teleprompt.gepa.gepa_utils import ScoreWithFeedback
 import seevals.data_types as types
 
 pd.options.mode.copy_on_write = "warn"
+
+# Silence GEPA teleprompter chatter (per-iteration pareto/score logs).
+# Flip to INFO to re-enable.
+logging.getLogger("dspy.teleprompt.gepa.gepa").setLevel(logging.WARNING)
+
+# Silence the per-minibatch "Average Metric: X / Y (Z%)" tqdm bars that GEPA
+# emits via bootstrap_trace_data (which hardcodes display_progress=True).
+# Targeted monkeypatch: force display_progress=False only for that code path.
+from dspy.teleprompt import bootstrap_finetune as _gepa_bf  # noqa: E402
+_orig_bf_evaluate = _gepa_bf.Evaluate
+
+
+def _quiet_bf_evaluate(*args, **kwargs):
+    kwargs["display_progress"] = False
+    return _orig_bf_evaluate(*args, **kwargs)
+
+
+_gepa_bf.Evaluate = _quiet_bf_evaluate
+logging.getLogger("dspy.evaluate.evaluate").setLevel(logging.WARNING)
 
 
 def parse_args() -> argparse.Namespace:
@@ -419,7 +439,7 @@ def run_gepa_experiment(lm, examples: SplitExamples, criteria: types.Criteria):
 
     baseline_evaluate = dspy.Evaluate(
         devset=examples.test, metric=metric, num_threads=10,
-        display_progress=True, display_table=0, max_errors=999)
+        display_progress=False, display_table=0, max_errors=999)
 
     baseline_score = baseline_evaluate(grading_module)
     optimized_program = teleprompter.compile(
