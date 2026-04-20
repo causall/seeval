@@ -1,5 +1,6 @@
 from pathlib import Path
 import argparse
+import hashlib
 import logging
 import random
 import time
@@ -275,18 +276,36 @@ def create_movie_rating_metrics(data: pd.DataFrame, sample_results: List[Systema
     return datasets
 
 
-def get_movie_rating_criteria() -> types.Criteria:
-    """Fixed evaluation criteria for the movielens experiment."""
+def make_cohort_token(seed: int, cohort_idx: int) -> str:
+    """Deterministic opaque anchor used to pin the grader to a single persona.
+
+    The literal value has no semantic meaning; rotating it per cohort prevents
+    a GEPA-optimized prompt from baking in cohort-specific phrasing that would
+    transfer poorly. Same (seed, cohort_idx) always yields the same token, so
+    produce-side and run-side can agree without passing state.
+    """
+    h = hashlib.blake2b(
+        f"{seed}:{cohort_idx}".encode(), digest_size=3).hexdigest()
+    return f"c-{h}"
+
+
+def get_movie_rating_criteria(cohort_token: str = "c-placeholder") -> types.Criteria:
+    """Evaluation criteria for the movielens experiment.
+
+    `cohort_token` is an opaque anchor (see `make_cohort_token`) inlined into
+    rubric descriptions to keep the grader committed to one consistent persona
+    rather than averaging across "all users".
+    """
     return types.Criteria(rubrics=[
         types.Rubric(
             id=1,
-            desc="The median rating of movie cohort id: 2788",
+            desc=f"The median rating of movie cohort id: {cohort_token}",
             scale="0.5 is the lowest rating, 5.0 is the highest rating",
             ge=0.5, le=5.0,
         ),
         types.Rubric(
             id=2,
-            desc="The percentage of movie cohort id: 2788 that like this significantly more than other movies",
+            desc=f"The percentage of movie cohort id: {cohort_token} that like this significantly more than other movies",
             scale="0.0 - 1.0",
             ge=0.0, le=1.0,
         ),
@@ -422,10 +441,16 @@ def make_movie_rating_metric(criteria: types.Criteria):
     return movie_rating_metric
 
 
-def run_gepa_experiment(lm, examples: SplitExamples, criteria: types.Criteria):
-    """Run baseline + GEPA optimization on a prepared example split."""
+def run_gepa_experiment(lm, examples: SplitExamples, criteria: types.Criteria,
+                        cohort_token: str):
+    """Run baseline + GEPA optimization on a prepared example split.
+
+    `cohort_token` must match the token baked into `criteria` so the grader
+    instruction and rubric descriptions reference the same anchor.
+    """
     grading_module = agents.make_semantic_grader(
-        FullMovieRating, "You are able to guess at the preference of cohort id: 2788")
+        FullMovieRating,
+        f"You are able to guess at the preference of cohort id: {cohort_token}")
     metric = make_movie_rating_metric(criteria)
 
     time_start = time.time()
@@ -466,15 +491,17 @@ def run_experiment(config: SetupConfig):
     sample_results = gd.load_sample_results_from_disk(Path(config.output_file))
     cache = establish_cache()
 
+    cohort_idx = len(sample_results) - 3
     splits = build_split_datasets(
-        cache, sample_results[-3], rng, config.exp_valid_movie_count)
+        cache, sample_results[cohort_idx], rng, config.exp_valid_movie_count)
     if splits is None:
         raise RuntimeError(
             "Selected sample_result does not meet exp_valid_movie_count threshold")
 
-    criteria = get_movie_rating_criteria()
+    cohort_token = make_cohort_token(config.seed, cohort_idx)
+    criteria = get_movie_rating_criteria(cohort_token)
     examples = build_split_examples(splits, criteria, config.seed)
-    return run_gepa_experiment(lm, examples, criteria)
+    return run_gepa_experiment(lm, examples, criteria, cohort_token)
 
 
 """

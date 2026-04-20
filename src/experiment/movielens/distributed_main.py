@@ -125,7 +125,9 @@ def cmd_produce(args: argparse.Namespace) -> int:
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
-    criteria = ml_main.get_movie_rating_criteria()
+    # Manifest-level criteria is only a template -- consumers rebuild per-cohort
+    # criteria from (seed, sample_idx) via make_cohort_token at run time.
+    criteria_template = ml_main.get_movie_rating_criteria("c-template")
 
     print(
         f"[produce] cohorts {idx_range.start}..{idx_range.stop} "
@@ -151,8 +153,10 @@ def cmd_produce(args: argparse.Namespace) -> int:
             print(f"[produce] idx={idx} skipped (below threshold)", flush=True)
             continue
 
+        cohort_token = ml_main.make_cohort_token(setup_config.seed, idx)
+        per_cohort_criteria = ml_main.get_movie_rating_criteria(cohort_token)
         examples = ml_main.build_split_examples(
-            splits, criteria, setup_config.seed)
+            splits, per_cohort_criteria, setup_config.seed)
 
         n_train = shard_io.write_examples_shard(
             shard_io.shard_path(out_dir, "train", idx), examples.train)
@@ -172,7 +176,7 @@ def cmd_produce(args: argparse.Namespace) -> int:
         gc.collect()
 
     manifest = shard_io.ShardManifest(
-        criteria=criteria,
+        criteria=criteria_template,
         seed=setup_config.seed,
         produced_indices=produced,
         exp_valid_movie_count=setup_config.exp_valid_movie_count,
@@ -197,8 +201,12 @@ def cmd_produce(args: argparse.Namespace) -> int:
 def cmd_run(args: argparse.Namespace) -> int:
     out_dir = Path(args.dataset_dir)
     manifest = shard_io.load_manifest(shard_io.manifest_path(out_dir))
-    criteria = manifest.criteria
     idx = args.sample_idx
+
+    # Rebuild criteria from (seed, idx) so the opaque cohort anchor in rubric
+    # descs matches the grader instruction. Manifest.criteria is only a template.
+    cohort_token = ml_main.make_cohort_token(manifest.seed, idx)
+    criteria = ml_main.get_movie_rating_criteria(cohort_token)
 
     if idx not in manifest.produced_indices:
         print(
@@ -214,7 +222,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     test = shard_io.load_examples_shard(
         shard_io.shard_path(out_dir, "test", idx), criteria)
     print(
-        f"[run] idx={idx} train={len(train)} val={len(validation)} test={len(test)}",
+        f"[run] idx={idx} cohort_token={cohort_token} "
+        f"train={len(train)} val={len(validation)} test={len(test)}",
         flush=True,
     )
 
@@ -230,7 +239,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     t0 = time.time()
     optimized_program, _teleprompter, baseline_score, optimized_score = \
-        ml_main.run_gepa_experiment(lm, examples, criteria)
+        ml_main.run_gepa_experiment(lm, examples, criteria, cohort_token)
     duration = time.time() - t0
 
     program_path: Optional[str] = None
@@ -241,6 +250,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     result = {
         "sample_idx": idx,
+        "cohort_token": cohort_token,
         "model": args.model,
         "baseline_score": float(baseline_score),
         "optimized_score": float(optimized_score),
