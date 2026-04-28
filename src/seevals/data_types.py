@@ -31,6 +31,7 @@ class ResponseData(pydantic.BaseModel, Generic[T]):
 
 class Rubric(pydantic.BaseModel):
     id: int = pydantic.Field(description="The id of the rubric")
+    title: Optional[str] = pydantic.Field(description="The title of the rubric", default=None)
     ge: float = pydantic.Field(
         default=0.0, description="The minimum score", ge=0.0)
     le: float = pydantic.Field(
