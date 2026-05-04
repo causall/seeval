@@ -27,6 +27,14 @@ dependencies = [
   "pandas",
 ]
 
+[project.optional-dependencies]
+analysis = [
+  "matplotlib",
+  "seaborn",
+  "scipy",
+  "tiktoken",
+]
+
 [project.scripts]
 seeval = "cli.main:main"
 
