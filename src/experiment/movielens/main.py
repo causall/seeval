@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 from seevals import agents
 from seevals.execute import run_parallel
 from seevals.utils import make_train_test_split_from_eval_dataset
+from seevals.agent_util import make_difference_feedback_metric
 from dspy.teleprompt.gepa.gepa_utils import ScoreWithFeedback
 
 import seevals.data_types as types
@@ -298,12 +299,14 @@ def get_movie_rating_criteria(cohort_token: str = "c-placeholder") -> types.Crit
     """
     return types.Criteria(rubrics=[
         types.Rubric(
+            title="median rating",
             id=1,
             desc=f"The median rating of movie cohort id: {cohort_token}",
             scale="0.5 is the lowest rating, 5.0 is the highest rating",
             ge=0.5, le=5.0,
         ),
         types.Rubric(
+            title="approval rate",
             id=2,
             desc=f"The percentage of movie cohort id: {cohort_token} that like this significantly more than other movies",
             scale="0.0 - 1.0",
@@ -354,13 +357,30 @@ class SplitDatasets:
 
 
 def build_split_datasets(cache: Cache, sample_result, rng: random.Random,
-                         exp_valid_movie_count: int) -> SplitDatasets:
+                         exp_valid_movie_count: int,
+                         total_examples: "int | None" = None) -> SplitDatasets:
     """Build FullMovieRating lists for train/val/test splits for a single cohort.
 
-    Returns None if the sample does not meet the ``exp_valid_movie_count`` threshold.
+    If ``total_examples`` is set, the cohort's ``movie_ids`` are deterministically
+    downsampled to exactly that size *before* the 80/20 -> 80/20 split, so every
+    produced cohort yields identical train/val/test sizes.
+    Returns None if the sample has fewer valid movies than
+    ``max(exp_valid_movie_count, total_examples or 0)``.
     """
+    required = max(exp_valid_movie_count, total_examples or 0)
+    if sample_result.valid_movie_count < required:
+        return None
+
+    if total_examples is not None and len(sample_result.movie_ids) > total_examples:
+        chosen = rng.sample(sample_result.movie_ids, total_examples)
+        sample_result = sample_result.model_copy(update={
+            "movie_ids": chosen,
+            "valid_movie_count": total_examples,
+        })
+
+    threshold = total_examples if total_examples is not None else exp_valid_movie_count
     metrics_list = create_movie_rating_metrics(
-        cache.filtered_ratings, [sample_result], rng, exp_valid_movie_count)
+        cache.filtered_ratings, [sample_result], rng, threshold)
     if not metrics_list:
         return None
 
@@ -449,9 +469,9 @@ def run_gepa_experiment(lm, examples: SplitExamples, criteria: types.Criteria,
     instruction and rubric descriptions reference the same anchor.
     """
     grading_module = agents.make_semantic_grader(
-        FullMovieRating,
-        f"You are able to guess at the preference of cohort id: {cohort_token}")
-    metric = make_movie_rating_metric(criteria)
+        FullMovieRating)
+        #f"You are able to guess at the preference of cohort id: {cohort_token}")
+    metric = make_difference_feedback_metric(criteria)
 
     time_start = time.time()
     teleprompter = dspy.GEPA(

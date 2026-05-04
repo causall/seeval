@@ -66,6 +66,11 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     p_produce.add_argument(
         "--seed", type=int, default=None,
         help="Override the seed from the config")
+    p_produce.add_argument(
+        "--total-examples", type=int, default=None,
+        help="If set, downsample each cohort's movie_ids to exactly this many "
+             "BEFORE the 80/20->80/20 split so every shard has identical sizes. "
+             "Cohorts with fewer valid movies are skipped.")
 
     p_run = sub.add_parser(
         "run", help="Run baseline + GEPA for a single cohort shard")
@@ -147,7 +152,9 @@ def cmd_produce(args: argparse.Namespace) -> int:
         # how many cohorts preceded this one in the range.
         rng = random.Random(setup_config.seed + idx)
         splits = ml_main.build_split_datasets(
-            cache, sample_results[idx], rng, setup_config.exp_valid_movie_count)
+            cache, sample_results[idx], rng,
+            setup_config.exp_valid_movie_count,
+            total_examples=args.total_examples)
         if splits is None:
             skipped.append(idx)
             print(f"[produce] idx={idx} skipped (below threshold)", flush=True)
@@ -180,6 +187,7 @@ def cmd_produce(args: argparse.Namespace) -> int:
         seed=setup_config.seed,
         produced_indices=produced,
         exp_valid_movie_count=setup_config.exp_valid_movie_count,
+        total_examples=args.total_examples,
         source_config=str(config_path),
         created_at=datetime.now(timezone.utc),
     )

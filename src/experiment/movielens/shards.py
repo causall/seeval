@@ -30,6 +30,7 @@ class ShardManifest(pydantic.BaseModel):
     seed: int
     produced_indices: List[int] = pydantic.Field(default_factory=list)
     exp_valid_movie_count: int = 0
+    total_examples: Optional[int] = None
     source_config: Optional[str] = None
     created_at: datetime = pydantic.Field(default_factory=datetime.utcnow)
 
