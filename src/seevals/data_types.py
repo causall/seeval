@@ -31,7 +31,8 @@ class ResponseData(pydantic.BaseModel, Generic[T]):
 
 class Rubric(pydantic.BaseModel):
     id: int = pydantic.Field(description="The id of the rubric")
-    title: Optional[str] = pydantic.Field(description="The title of the rubric", default=None)
+    title: Optional[str] = pydantic.Field(
+        description="The title of the rubric", default=None)
     ge: float = pydantic.Field(
         default=0.0, description="The minimum score", ge=0.0)
     le: float = pydantic.Field(
@@ -91,16 +92,6 @@ class GradingArgs[V](TypedDict):
 class GradingInput[V](TypedDict):
     criteria: Criteria
     input: V
-
-
-class TotalScore(pydantic.BaseModel):
-    total_score: float = pydantic.Field(
-        default=0.0, description="The total score between 0.0 and 1.0", ge=0.0, le=1.0, decimal_places=2)
-
-
-class Score(pydantic.BaseModel):
-    score: float = pydantic.Field(
-        default=0.0, description="The score between 0.0 and 1.0", ge=0.0, le=1.0, decimal_places=2)
 
 
 class Sample(pydantic.BaseModel):

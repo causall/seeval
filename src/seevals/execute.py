@@ -1,5 +1,5 @@
 import dspy
-from typing import TypedDict, Type, Tuple, Dict, Iterable, ParamSpec, TypeVar, Generic, List, Callable, Optional, Protocol
+from typing import List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from . import data_types as types
 
