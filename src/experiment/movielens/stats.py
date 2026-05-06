@@ -9,72 +9,76 @@ DFTransform = Callable[[pd.DataFrame], pd.DataFrame]
 
 
 def get_user_preference_per_movie(data_matrix: pd.DataFrame) -> pd.DataFrame:
-    user_matrix = data_matrix.groupby('userId')
+    user_matrix = data_matrix.groupby("userId")
 
 
 def calc_metrics(df: pd.DataFrame, scale: float = 1.0) -> pd.DataFrame:
-    df['global_approval'] = (
-        np.tanh(df['preference_direction']/scale) > 0.75).astype(int) * (df['rating'] > 3.0).astype(int)
+    df["global_approval"] = (np.tanh(df["preference_direction"] / scale) > 0.75).astype(
+        int
+    ) * (df["rating"] > 3.0).astype(int)
     return df
 
 
 def sum_ratings(df: pd.DataFrame) -> pd.DataFrame:
-    df['group_sum'] = df.groupby('userId')['rating'].transform('sum')
+    df["group_sum"] = df.groupby("userId")["rating"].transform("sum")
     return df
 
 
 def count_ratings(df: pd.DataFrame) -> pd.DataFrame:
-    df['group_count'] = df.groupby('userId')['rating'].transform('count')
+    df["group_count"] = df.groupby("userId")["rating"].transform("count")
     return df
 
 
 def sum_squares_ratings(df: pd.DataFrame) -> pd.DataFrame:
-    df['group_sum_sq'] = df.groupby(
-        'userId')['rating'].transform(lambda x: (x**2).sum())
+    df["group_sum_sq"] = df.groupby("userId")["rating"].transform(
+        lambda x: (x**2).sum()
+    )
     return df
 
 
 def loo_mean(df: pd.DataFrame) -> pd.DataFrame:
-    df['loo_mean'] = (df['group_sum'] - df['rating']) / (df['group_count'] - 1)
+    df["loo_mean"] = (df["group_sum"] - df["rating"]) / (df["group_count"] - 1)
     return df
 
 
 def global_mean(df: pd.DataFrame) -> pd.DataFrame:
-    df['global_mean'] = df['group_sum'] / df['group_count']
+    df["global_mean"] = df["group_sum"] / df["group_count"]
     return df
 
 
 def global_std(df: pd.DataFrame) -> pd.DataFrame:
-    df['global_std'] = np.sqrt(
-        df['group_sum_sq'] / df['group_count'] - df['global_mean']**2)
+    df["global_std"] = np.sqrt(
+        df["group_sum_sq"] / df["group_count"] - df["global_mean"] ** 2
+    )
     return df
 
 
 def loo_std(df: pd.DataFrame) -> pd.DataFrame:
-    loo_sum = df['group_sum'] - df['rating']
-    loo_sum_sq = df['group_sum_sq'] - (df['rating'] ** 2)
-    loo_count = df['group_count'] - 1
+    loo_sum = df["group_sum"] - df["rating"]
+    loo_sum_sq = df["group_sum_sq"] - (df["rating"] ** 2)
+    loo_count = df["group_count"] - 1
 
-    loo_var = (loo_sum_sq - (loo_sum ** 2 / loo_count)) / (loo_count - 1)
-    df['loo_std'] = np.sqrt(loo_var.clip(lower=0))
+    loo_var = (loo_sum_sq - (loo_sum**2 / loo_count)) / (loo_count - 1)
+    df["loo_std"] = np.sqrt(loo_var.clip(lower=0))
     return df
 
 
 def global_std(df: pd.DataFrame) -> pd.DataFrame:
-    df['global_std'] = np.sqrt(
-        df['group_sum_sq'] / df['group_count'] - df['global_mean']**2)
+    df["global_std"] = np.sqrt(
+        df["group_sum_sq"] / df["group_count"] - df["global_mean"] ** 2
+    )
     return df
 
 
 def global_preference_direction(df: pd.DataFrame) -> pd.DataFrame:
-    df['global_preference_direction'] = (
-        df['rating'] - df['global_mean']) / df['global_std']
+    df["global_preference_direction"] = (df["rating"] - df["global_mean"]) / df[
+        "global_std"
+    ]
     return df
 
 
 def loo_preference_direction(df: pd.DataFrame) -> pd.DataFrame:
-    df['loo_preference_direction'] = (
-        df['rating'] - df['loo_mean']) / df['loo_std']
+    df["loo_preference_direction"] = (df["rating"] - df["loo_mean"]) / df["loo_std"]
     return df
 
 
@@ -106,7 +110,9 @@ def make_approval(
     return _add
 
 
-def add_train_stats_to_test_df(train_df: pd.DataFrame, test_df: pd.DataFrame) -> pd.DataFrame:
+def add_train_stats_to_test_df(
+    train_df: pd.DataFrame, test_df: pd.DataFrame
+) -> pd.DataFrame:
     mean_map = train_df.groupby("userId")["global_mean"].first()
     std_map = train_df.groupby("userId")["global_std"].first()
 
@@ -134,12 +140,13 @@ def calc_leave_one_out_metrics(df: pd.DataFrame, scale: float = 1.0) -> pd.DataF
     )
 
 
-def calc_test_statistics(train_df: pd.DataFrame, test_df: pd.DataFrame, scale: float = 1.0) -> pd.DataFrame:
+def calc_test_statistics(
+    train_df: pd.DataFrame, test_df: pd.DataFrame, scale: float = 1.0
+) -> pd.DataFrame:
     test_df = test_df.copy()
     test_df = add_train_stats_to_test_df(train_df, test_df)
     g_approval = make_approval(scope="global", scale=scale)
-    return (test_df.pipe(global_preference_direction)
-            .pipe(g_approval))
+    return test_df.pipe(global_preference_direction).pipe(g_approval)
 
 
 # return df

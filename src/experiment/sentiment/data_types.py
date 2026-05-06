@@ -43,21 +43,28 @@ class DatasetSplit:
 
 class SentimentGenerationArgs(pydantic.BaseModel):
     sentiments: List[Literal["positive", "negative", "neutral"]] = pydantic.Field(
-        description="a list of sentiments to generate a list of headlines that are associated with the sentiment")
+        description="a list of sentiments to generate a list of headlines that are associated with the sentiment"
+    )
     num_headlines: int = pydantic.Field(
-        description="the number of headlines to generate for each sentiment", gt=0, le=300)
+        description="the number of headlines to generate for each sentiment",
+        gt=0,
+        le=300,
+    )
 
 
 class SentimentHeadline(pydantic.BaseModel):
     sentiment: Literal["positive", "negative", "neutral"] = pydantic.Field(
-        description="the sentiment of the headline")
+        description="the sentiment of the headline"
+    )
     headline: str = pydantic.Field(
-        description="the headline that is associated with the sentiment")
+        description="the headline that is associated with the sentiment"
+    )
 
 
 class Headline(pydantic.BaseModel):
     headline: str = pydantic.Field(
-        description="A news, magazine, or other type of headline")
+        description="A news, magazine, or other type of headline"
+    )
 
 
 class SentimentHeadlineOutput(pydantic.RootModel[List[SentimentHeadline]]):
@@ -66,8 +73,10 @@ class SentimentHeadlineOutput(pydantic.RootModel[List[SentimentHeadline]]):
 
 # Storage models
 
+
 class ExperimentResult(pydantic.BaseModel):
     """Result of a single experiment instance run"""
+
     persona_name: str
     instance: ExperimentInstance
     baseline_score: float
@@ -78,6 +87,7 @@ class ExperimentResult(pydantic.BaseModel):
 
 class ExperimentRunManifest(pydantic.BaseModel):
     """Manifest for an entire experiment run"""
+
     run_id: str
     config: ExperimentConfig
     noise_params: List[float]
@@ -88,5 +98,6 @@ class ExperimentRunManifest(pydantic.BaseModel):
 
 class ExperimentRunResults(pydantic.BaseModel):
     """All results from an experiment run"""
+
     run_id: str
     results: List[ExperimentResult]

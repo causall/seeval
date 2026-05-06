@@ -2,11 +2,10 @@
 
 Saves optimized programs, results, and manifests to a runs/ folder structure.
 """
-import json
-import os
+
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 import dspy
 
@@ -118,8 +117,7 @@ def save_experiment_result(result: ExperimentResult, run_id: str) -> None:
     results_path = run_dir / "results.json"
 
     # Load existing results
-    existing = ExperimentRunResults.model_validate_json(
-        results_path.read_text())
+    existing = ExperimentRunResults.model_validate_json(results_path.read_text())
 
     # Append new result
     existing.results.append(result)
@@ -138,8 +136,7 @@ def complete_experiment_run(run_id: str) -> None:
     manifest_path = run_dir / "manifest.json"
 
     # Load manifest
-    manifest = ExperimentRunManifest.model_validate_json(
-        manifest_path.read_text())
+    manifest = ExperimentRunManifest.model_validate_json(manifest_path.read_text())
 
     # Update completed_at
     manifest.completed_at = datetime.now()
@@ -148,7 +145,9 @@ def complete_experiment_run(run_id: str) -> None:
     manifest_path.write_text(manifest.model_dump_json(indent=2))
 
 
-def load_experiment_run(run_id: str) -> tuple[ExperimentRunManifest, ExperimentRunResults]:
+def load_experiment_run(
+    run_id: str,
+) -> tuple[ExperimentRunManifest, ExperimentRunResults]:
     """Load an experiment run's manifest and results.
 
     Args:

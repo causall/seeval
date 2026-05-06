@@ -6,7 +6,13 @@ from typing import List, Tuple
 import jsonpath_ng as jp
 
 from seevals.data_types import (
-    Criteria, DataCriteria, DatumCriteria, EvalData, EvalDatum, EvalItem, View,
+    Criteria,
+    DataCriteria,
+    DatumCriteria,
+    EvalData,
+    EvalDatum,
+    EvalItem,
+    View,
 )
 from seevals.utils import write_eval_dataset
 
@@ -17,14 +23,26 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--criteria", metavar="FILENAME", type=str, required=True,
-        help="DataCriteria JSON file describing rubrics + json_paths")
+        "--criteria",
+        metavar="FILENAME",
+        type=str,
+        required=True,
+        help="DataCriteria JSON file describing rubrics + json_paths",
+    )
     parser.add_argument(
-        "--dataset", metavar="FILENAME", type=str, required=True,
-        help="JSONL log file (one JSON object per line)")
+        "--dataset",
+        metavar="FILENAME",
+        type=str,
+        required=True,
+        help="JSONL log file (one JSON object per line)",
+    )
     parser.add_argument(
-        "--output", metavar="FILENAME", type=str, required=True,
-        help="Output path for the scored EvalData (.jsonl)")
+        "--output",
+        metavar="FILENAME",
+        type=str,
+        required=True,
+        help="Output path for the scored EvalData (.jsonl)",
+    )
     return parser.parse_args()
 
 
@@ -70,11 +88,13 @@ def build_eval_data(
                 data=entry,
                 score=score,
             )
-            datums.append(EvalDatum(
-                group_id=str(i),
-                items=[item],
-                rubric=dc.rubric,
-            ))
+            datums.append(
+                EvalDatum(
+                    group_id=str(i),
+                    items=[item],
+                    rubric=dc.rubric,
+                )
+            )
         dataset.append(EvalData(data=datums, raw_data=entry))
 
     return criteria, dataset

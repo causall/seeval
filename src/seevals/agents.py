@@ -1,6 +1,16 @@
 import dspy
 import pydantic
-from typing import Optional, Sequence, Annotated, List, Tuple, TypedDict, Type, TypeVar, Generic
+from typing import (
+    Optional,
+    Sequence,
+    Annotated,
+    List,
+    Tuple,
+    TypedDict,
+    Type,
+    TypeVar,
+    Generic,
+)
 from dspy import InputField, OutputField
 import numpy as np
 from . import data_types as types
@@ -27,8 +37,7 @@ class QA(pydantic.BaseModel):
         # min_length=50,
         # max_length=200
     )
-    model_config = pydantic.ConfigDict(
-        extra='forbid')  # Disallow extra fields
+    model_config = pydantic.ConfigDict(extra="forbid")  # Disallow extra fields
 
 
 class QABaseModel(pydantic.BaseModel):
@@ -36,31 +45,36 @@ class QABaseModel(pydantic.BaseModel):
         default_factory=list,
         description="Questions and they're associated answers in chronological order",
         min_length=5,
-        max_length=10
+        max_length=10,
     )
 
 
 class MetaAnalysisEntity(pydantic.BaseModel):
-    name: str = pydantic.Field(
-        description="The unique name of the entity")
-    type: str = pydantic.Field(
-        description="The type of the entity")
+    name: str = pydantic.Field(description="The unique name of the entity")
+    type: str = pydantic.Field(description="The type of the entity")
 
 
 class MetaAnalysisIndices(pydantic.BaseModel):
     subsections_index: List[str] = pydantic.Field(
-        description="A unique list of subsections")
+        description="A unique list of subsections"
+    )
     entities_index: List[MetaAnalysisEntity] = pydantic.Field(
-        description="A unique list of entities in associated subsections")
-    relationships_index: List[Tuple[MetaAnalysisEntity, MetaAnalysisEntity]] = pydantic.Field(
-        description="A unique tuple of entities describing a relationship between the entities")
+        description="A unique list of entities in associated subsections"
+    )
+    relationships_index: List[Tuple[MetaAnalysisEntity, MetaAnalysisEntity]] = (
+        pydantic.Field(
+            description="A unique tuple of entities describing a relationship between the entities"
+        )
+    )
 
 
 class MetaAnalysis(pydantic.BaseModel):
     analysis_overview: str = pydantic.Field(
-        description="The analysis overview of the subsections, entities and relationships")
+        description="The analysis overview of the subsections, entities and relationships"
+    )
     analysis_indices: MetaAnalysisIndices = pydantic.Field(
-        description="The indices of the analysis to enable efficient querying")
+        description="The indices of the analysis to enable efficient querying"
+    )
 
 
 """
@@ -84,27 +98,28 @@ class InterviewAnalysis(dspy.Signature):
 
     You reply with the full updated feedback not only the updated information. You respond with a complete response, unless a conintuation is specified.
     """
-    scenario: str = InputField(
-        decription="The tokenomic or economic scenario to analyze")
-    interview = InputField(
-        desc=f"An interview questions and answers to use to complete the analysis, in this format {QABaseModel.model_json_schema()}")
-    history = InputField(
-        description="The history of the analysis so far")
-    continuation = InputField(
-        description="The portion of the output that needs to be completed")
 
-    analysis_plan: MetaAnalysis = OutputField(description='The analysis plan')
+    scenario: str = InputField(
+        decription="The tokenomic or economic scenario to analyze"
+    )
+    interview = InputField(
+        desc=f"An interview questions and answers to use to complete the analysis, in this format {QABaseModel.model_json_schema()}"
+    )
+    history = InputField(description="The history of the analysis so far")
+    continuation = InputField(
+        description="The portion of the output that needs to be completed"
+    )
+
+    analysis_plan: MetaAnalysis = OutputField(description="The analysis plan")
     # analysis_plan = generate_json_output_field(MetaAnalysis)
 
 
-class AnalysisPlanningResult(MetaAnalysis):
-    ...
+class AnalysisPlanningResult(MetaAnalysis): ...
 
 
 class AnalysisPlanning(dspy.Signature):
-    scenario = InputField(
-        decription="The tokenomic or economic scenario to analyze")
-    analysis_plan: MetaAnalysis = OutputField(description='The analysis plan')
+    scenario = InputField(decription="The tokenomic or economic scenario to analyze")
+    analysis_plan: MetaAnalysis = OutputField(description="The analysis plan")
 
 
 class ScenarioArgs(pydantic.BaseModel):
@@ -130,25 +145,20 @@ System:
 """
 
 
-def make_ordered_score_tuple(
-    rubrics: list[types.Rubric]
-) -> Type[tuple]:
+def make_ordered_score_tuple(rubrics: list[types.Rubric]) -> Type[tuple]:
 
     # 1) Build each Annotated float type
-    types = tuple(
-        Annotated[str, rubric]
-        for rubric in rubrics
-    )
+    types = tuple(Annotated[str, rubric] for rubric in rubrics)
     # 2) Dynamically subscribe Tuple[...] to that tuple of types
     return type(types)
 
 
 class SemanticSignature[V](dspy.Signature):
-    criteria: types.Criteria = InputField(
-        description="The criteria for grading")
+    criteria: types.Criteria = InputField(description="The criteria for grading")
     input: V = InputField(description="The input to be graded")
     scores: List[List[types.ScoredRubric]] = OutputField(
-        description="The scores of the applied criteria in the order of the criteria")
+        description="The scores of the applied criteria in the order of the criteria"
+    )
 
 
 class ContrastiveSignature[V, O](dspy.Signature):
@@ -157,16 +167,18 @@ class ContrastiveSignature[V, O](dspy.Signature):
     How much you fail the criteria will be determined by the noise factor specified. Use the noise factor to
     adjust the input to impact the score of how the input meets the criteria by that amount.
     """
-    criteria: types.Criteria = InputField(
-        description="The criteria for grading")
+
+    criteria: types.Criteria = InputField(description="The criteria for grading")
     noise_factor: float = InputField(
-        description="The noise factor for modifying the input")
+        description="The noise factor for modifying the input"
+    )
     input: V = InputField(description="The input to be graded")
     output: O = OutputField(
-        description="The modified input, to meet the contrastive criteria")
+        description="The modified input, to meet the contrastive criteria"
+    )
 
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class GradingInput[T](TypedDict):
@@ -180,14 +192,14 @@ class ContrastiveInput[T](TypedDict):
     input: T
 
 
-C = TypeVar('C')
+C = TypeVar("C")
 
 
 class GradingResult(pydantic.BaseModel):
     scores: List[types.ScoredRubric]
 
 
-I = TypeVar('I', bound='pydantic.BaseModel')
+I = TypeVar("I", bound="pydantic.BaseModel")
 
 
 class GraderGenerationModule(dspy.Module, Generic[I]):
@@ -195,7 +207,8 @@ class GraderGenerationModule(dspy.Module, Generic[I]):
         semantic_signature = SemanticSignature[GradingInput[input_type]]
         if extra_instructions:
             semantic_signature = semantic_signature.with_instructions(
-                extra_instructions)
+                extra_instructions
+            )
         self.grader = dspy.ChainOfThought(semantic_signature)
 
     """
@@ -211,14 +224,17 @@ class GraderGenerationModule(dspy.Module, Generic[I]):
         return prediction.scores
 
 
-def make_semantic_grader(InputType: Type[I], extra_instructions: Optional[str] = None) -> GraderGenerationModule[I]:
+def make_semantic_grader(
+    InputType: Type[I], extra_instructions: Optional[str] = None
+) -> GraderGenerationModule[I]:
     return GraderGenerationModule(InputType, extra_instructions)
 
 
 class GraderContrastiveModule(dspy.Module, Generic[I]):
     def __init__(self, input_type: Type[I]):
         self.contrast = dspy.ChainOfThought(
-            ContrastiveSignature[ContrastiveInput[input_type], input_type])
+            ContrastiveSignature[ContrastiveInput[input_type], input_type]
+        )
 
     def forward(self, input: ContrastiveInput[I]) -> dspy.Prediction:
         return self.contrast(**input)
@@ -228,19 +244,30 @@ class GraderContrastiveModule(dspy.Module, Generic[I]):
 
 
 # Normal distribution noise factor application to inputs
-In = TypeVar('In')
+In = TypeVar("In")
 
 
-def from_grading_inputs(inputs: Sequence[GradingInput[In]], mean_noise_factor: float, rng: np.random.Generator = np.random.default_rng(42)) -> List[ContrastiveInput[In]]:
+def from_grading_inputs(
+    inputs: Sequence[GradingInput[In]],
+    mean_noise_factor: float,
+    rng: np.random.Generator = np.random.default_rng(42),
+) -> List[ContrastiveInput[In]]:
     noise_factors = rng.normal(loc=mean_noise_factor, size=len(inputs))
-    return [from_grading_input(input, noise_factor) for input, noise_factor in zip(inputs, noise_factors)]
+    return [
+        from_grading_input(input, noise_factor)
+        for input, noise_factor in zip(inputs, noise_factors)
+    ]
 
 
-In2 = TypeVar('In2')
+In2 = TypeVar("In2")
 
 
-def from_grading_input(input: GradingInput[In2], noise_factor: float) -> ContrastiveInput[In2]:
-    return ContrastiveInput(criteria=input['criteria'], input=input['input'], noise_factor=noise_factor)
+def from_grading_input(
+    input: GradingInput[In2], noise_factor: float
+) -> ContrastiveInput[In2]:
+    return ContrastiveInput(
+        criteria=input["criteria"], input=input["input"], noise_factor=noise_factor
+    )
 
 
 def make_contrastive_grader(InputType: Type[I]) -> GraderContrastiveModule[I]:
@@ -256,6 +283,7 @@ class InterviewGenerationModule(dspy.Module):
 
     def get_value(self, prediction: dspy.Prediction) -> AnalysisPlanningResult:
         return prediction.analysis_plan
+
 
 # I want to generate synthetic data that produces a range of scores based on the criteria
 # is this what I want to do? To produce a distribution of good and bad examples

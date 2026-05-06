@@ -9,6 +9,7 @@ Subcommands:
   produce   Build shards for cohorts in [--start, --end).
   run       Execute baseline + GEPA for a single cohort from a shard dir.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -44,49 +45,89 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_produce = sub.add_parser(
-        "produce", help="Build dspy.Example shards for a range of cohorts")
+        "produce", help="Build dspy.Example shards for a range of cohorts"
+    )
     p_produce.add_argument(
-        "--config", required=True, type=str,
-        help="Path to the SetupConfig JSON (produced by main.py --setup)")
+        "--config",
+        required=True,
+        type=str,
+        help="Path to the SetupConfig JSON (produced by main.py --setup)",
+    )
     p_produce.add_argument(
-        "--out", required=True, type=str,
-        help="Output directory for shards + manifest.json")
+        "--out",
+        required=True,
+        type=str,
+        help="Output directory for shards + manifest.json",
+    )
     p_produce.add_argument(
-        "--start", type=int, default=0,
-        help="Start index (inclusive) into sample_results")
+        "--start",
+        type=int,
+        default=0,
+        help="Start index (inclusive) into sample_results",
+    )
     p_produce.add_argument(
-        "--end", type=int, default=None,
-        help="End index (exclusive). Defaults to len(sample_results)")
+        "--end",
+        type=int,
+        default=None,
+        help="End index (exclusive). Defaults to len(sample_results)",
+    )
     p_produce.add_argument(
-        "--limit", type=int, default=None,
-        help="Optional cap on number of cohorts to produce (applied after start)")
+        "--limit",
+        type=int,
+        default=None,
+        help="Optional cap on number of cohorts to produce (applied after start)",
+    )
     p_produce.add_argument(
-        "--exp-valid-movie-count", type=int, default=None,
-        help="Override the exp_valid_movie_count threshold from the config")
+        "--exp-valid-movie-count",
+        type=int,
+        default=None,
+        help="Override the exp_valid_movie_count threshold from the config",
+    )
     p_produce.add_argument(
-        "--seed", type=int, default=None,
-        help="Override the seed from the config")
+        "--seed", type=int, default=None, help="Override the seed from the config"
+    )
     p_produce.add_argument(
-        "--total-examples", type=int, default=None,
+        "--total-examples",
+        type=int,
+        default=None,
         help="If set, downsample each cohort's movie_ids to exactly this many "
-             "BEFORE the 80/20->80/20 split so every shard has identical sizes. "
-             "Cohorts with fewer valid movies are skipped.")
+        "BEFORE the 80/20->80/20 split so every shard has identical sizes. "
+        "Cohorts with fewer valid movies are skipped.",
+    )
 
-    p_run = sub.add_parser(
-        "run", help="Run baseline + GEPA for a single cohort shard")
-    p_run.add_argument("--dataset-dir", required=True, type=str,
-                       help="Directory containing manifest.json + shards")
-    p_run.add_argument("--sample-idx", required=True, type=int,
-                       help="Cohort index to execute (must exist in the shard dir)")
+    p_run = sub.add_parser("run", help="Run baseline + GEPA for a single cohort shard")
+    p_run.add_argument(
+        "--dataset-dir",
+        required=True,
+        type=str,
+        help="Directory containing manifest.json + shards",
+    )
+    p_run.add_argument(
+        "--sample-idx",
+        required=True,
+        type=int,
+        help="Cohort index to execute (must exist in the shard dir)",
+    )
     p_run.add_argument("--model", type=str, default="openai/qwen3-235b")
     p_run.add_argument("--api-base", type=str, default="http://localhost:4000")
     p_run.add_argument("--api-key", type=str, default="noop")
-    p_run.add_argument("--out", type=str, default=None,
-                       help="Optional path to write JSON result summary")
-    p_run.add_argument("--save-program", type=str, default=None,
-                       help="Optional path to save the optimized program JSON")
-    p_run.add_argument("--load-only", action="store_true",
-                       help="Load the shards into memory, print counts, and exit (for profiling)")
+    p_run.add_argument(
+        "--out",
+        type=str,
+        default=None,
+        help="Optional path to write JSON result summary",
+    )
+    p_run.add_argument(
+        "--save-program",
+        type=str,
+        default=None,
+        help="Optional path to save the optimized program JSON",
+    )
+    p_run.add_argument(
+        "--load-only",
+        action="store_true",
+        help="Load the shards into memory, print counts, and exit (for profiling)",
+    )
 
     return parser.parse_args(argv)
 
@@ -96,11 +137,11 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 # ---------------------------------------------------------------------------
 
 
-def _resolve_range(total: int, start: int, end: Optional[int],
-                   limit: Optional[int]) -> range:
+def _resolve_range(
+    total: int, start: int, end: Optional[int], limit: Optional[int]
+) -> range:
     if start < 0 or start > total:
-        raise ValueError(
-            f"--start={start} out of range for {total} sample_results")
+        raise ValueError(f"--start={start} out of range for {total} sample_results")
     stop = total if end is None else min(end, total)
     if limit is not None:
         stop = min(stop, start + limit)
@@ -116,7 +157,8 @@ def cmd_produce(args: argparse.Namespace) -> int:
         setup_config = setup_config.model_copy(update={"seed": args.seed})
     if args.exp_valid_movie_count is not None:
         setup_config = setup_config.model_copy(
-            update={"exp_valid_movie_count": args.exp_valid_movie_count})
+            update={"exp_valid_movie_count": args.exp_valid_movie_count}
+        )
 
     output_file = Path(setup_config.output_file)
     if not output_file.is_absolute() and not output_file.exists():
@@ -125,8 +167,7 @@ def cmd_produce(args: argparse.Namespace) -> int:
         if candidate.exists():
             output_file = candidate
     sample_results = gd.load_sample_results_from_disk(output_file)
-    idx_range = _resolve_range(
-        len(sample_results), args.start, args.end, args.limit)
+    idx_range = _resolve_range(len(sample_results), args.start, args.end, args.limit)
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -136,12 +177,13 @@ def cmd_produce(args: argparse.Namespace) -> int:
 
     print(
         f"[produce] cohorts {idx_range.start}..{idx_range.stop} "
-        f"(of {len(sample_results)}) -> {out_dir}", flush=True)
+        f"(of {len(sample_results)}) -> {out_dir}",
+        flush=True,
+    )
 
     t_cache_start = time.time()
     cache = ml_main.establish_cache()
-    print(f"[produce] cache ready in {time.time() - t_cache_start:.1f}s",
-          flush=True)
+    print(f"[produce] cache ready in {time.time() - t_cache_start:.1f}s", flush=True)
 
     produced: List[int] = []
     skipped: List[int] = []
@@ -152,9 +194,12 @@ def cmd_produce(args: argparse.Namespace) -> int:
         # how many cohorts preceded this one in the range.
         rng = random.Random(setup_config.seed + idx)
         splits = ml_main.build_split_datasets(
-            cache, sample_results[idx], rng,
+            cache,
+            sample_results[idx],
+            rng,
             setup_config.exp_valid_movie_count,
-            total_examples=args.total_examples)
+            total_examples=args.total_examples,
+        )
         if splits is None:
             skipped.append(idx)
             print(f"[produce] idx={idx} skipped (below threshold)", flush=True)
@@ -163,14 +208,18 @@ def cmd_produce(args: argparse.Namespace) -> int:
         cohort_token = ml_main.make_cohort_token(setup_config.seed, idx)
         per_cohort_criteria = ml_main.get_movie_rating_criteria(cohort_token)
         examples = ml_main.build_split_examples(
-            splits, per_cohort_criteria, setup_config.seed)
+            splits, per_cohort_criteria, setup_config.seed
+        )
 
         n_train = shard_io.write_examples_shard(
-            shard_io.shard_path(out_dir, "train", idx), examples.train)
+            shard_io.shard_path(out_dir, "train", idx), examples.train
+        )
         n_val = shard_io.write_examples_shard(
-            shard_io.shard_path(out_dir, "val", idx), examples.validation)
+            shard_io.shard_path(out_dir, "val", idx), examples.validation
+        )
         n_test = shard_io.write_examples_shard(
-            shard_io.shard_path(out_dir, "test", idx), examples.test)
+            shard_io.shard_path(out_dir, "test", idx), examples.test
+        )
 
         produced.append(idx)
         print(
@@ -224,11 +273,14 @@ def cmd_run(args: argparse.Namespace) -> int:
         )
 
     train = shard_io.load_examples_shard(
-        shard_io.shard_path(out_dir, "train", idx), criteria)
+        shard_io.shard_path(out_dir, "train", idx), criteria
+    )
     validation = shard_io.load_examples_shard(
-        shard_io.shard_path(out_dir, "val", idx), criteria)
+        shard_io.shard_path(out_dir, "val", idx), criteria
+    )
     test = shard_io.load_examples_shard(
-        shard_io.shard_path(out_dir, "test", idx), criteria)
+        shard_io.shard_path(out_dir, "test", idx), criteria
+    )
     print(
         f"[run] idx={idx} cohort_token={cohort_token} "
         f"train={len(train)} val={len(validation)} test={len(test)}",
@@ -242,12 +294,12 @@ def cmd_run(args: argparse.Namespace) -> int:
     lm = setup_experiment_lm(args.model, args.api_base, args.api_key)
     dspy.configure(lm=lm)
 
-    examples = ml_main.SplitExamples(
-        train=train, validation=validation, test=test)
+    examples = ml_main.SplitExamples(train=train, validation=validation, test=test)
 
     t0 = time.time()
-    optimized_program, _teleprompter, baseline_score, optimized_score = \
+    optimized_program, _teleprompter, baseline_score, optimized_score = (
         ml_main.run_gepa_experiment(lm, examples, criteria, cohort_token)
+    )
     duration = time.time() - t0
 
     program_path: Optional[str] = None

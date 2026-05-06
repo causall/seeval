@@ -1,17 +1,19 @@
-from collections.abc import Callable
-from itertools import product
-from typing import List, Literal, Optional
+from typing import List, Optional
 from attr import Factory, dataclass
 import dspy
 import seevals.data_types as types
-import experiment.utils as exp_utils
 import experiment.data_types as exp_types
 # import experiment.sentiment.data as exp_data
 
 
 def get_evaluation_criteria() -> types.Criteria:
-    QualityRubric = types.Rubric(id=1, ge=0, le=1, desc="the quality of the headline",
-                                 scale="0 is don't like, 1 is like, the scale is either 0 or 1")
+    QualityRubric = types.Rubric(
+        id=1,
+        ge=0,
+        le=1,
+        desc="the quality of the headline",
+        scale="0 is don't like, 1 is like, the scale is either 0 or 1",
+    )
     return types.Criteria(rubrics=[QualityRubric])
 
 
@@ -30,24 +32,35 @@ def setup_experiment_lm(model: str, api_base: str, api_key: str):
 
     return lm
 
+
 # you might want to get and apply the score function
 
 
 @dataclass
 class AutomatedRubricScoring:
     rubric: Optional[types.Rubric] = None
-    score: exp_types.GetScoreFromDastasetFunction = Factory(lambda: (lambda _: (
-        _ for _ in ()).throw(NotImplementedError("score function required"))))
+    score: exp_types.GetScoreFromDastasetFunction = Factory(
+        lambda: (
+            lambda _: (_ for _ in ()).throw(
+                NotImplementedError("score function required")
+            )
+        )
+    )
 
 
-def apply_score_to_eval_data[T](eval_data: List[types.EvalData[T]], get_score: exp_types.GetScoreFromDastasetFunction):
+def apply_score_to_eval_data[T](
+    eval_data: List[types.EvalData[T]],
+    get_score: exp_types.GetScoreFromDastasetFunction,
+):
     for item in eval_data:
         item.data[0].items[0].data
         item.data[0].items[0].score = get_score(item.raw_data)
     return eval_data
 
 
-def apply_score_to_eval_data2[T](eval_data: List[types.EvalData[T]],  scoring: List[AutomatedRubricScoring]):
+def apply_score_to_eval_data2[T](
+    eval_data: List[types.EvalData[T]], scoring: List[AutomatedRubricScoring]
+):
     scoring_map = {s.rubric.id: s.score for s in scoring}
     for item in eval_data:
         for datum in item.data:
@@ -61,7 +74,9 @@ def apply_automated_scoring_to_eval_data[T](eval_data: List[types.EvalData[T]], 
 """
 
 
-def create_eval_from_data2(data: List, scoring: List[AutomatedRubricScoring], seed: int, data_type: type) -> List[types.EvalData]:
+def create_eval_from_data2(
+    data: List, scoring: List[AutomatedRubricScoring], seed: int, data_type: type
+) -> List[types.EvalData]:
     eval = types.EvalDatasetBuilder.build(data_type)
     for s in scoring:
         eval.add("$", None, types.View(views=["$"]), s.rubric)
@@ -70,9 +85,15 @@ def create_eval_from_data2(data: List, scoring: List[AutomatedRubricScoring], se
     return eval_data
 
 
-def create_eval_from_data[T](data: List[T], get_score: exp_types.GetScoreFromDastasetFunction, seed: int) -> exp_types.EvaluationDatasets[T]:
+def create_eval_from_data[T](
+    data: List[T], get_score: exp_types.GetScoreFromDastasetFunction, seed: int
+) -> exp_types.EvaluationDatasets[T]:
     eval = types.EvalDatasetBuilder.build(T)
-    eval.add("$", None, types.View(views=["$"]), types.Rubric(
-        id=-1, desc="Automatically scored from dataset"))
+    eval.add(
+        "$",
+        None,
+        types.View(views=["$"]),
+        types.Rubric(id=-1, desc="Automatically scored from dataset"),
+    )
     eval_data = eval.apply(data, seed=seed)
     return apply_score_to_eval_data(eval_data, get_score)

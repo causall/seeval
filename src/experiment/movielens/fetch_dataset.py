@@ -2,7 +2,6 @@
 Fetch and cache MovieLens dataset.
 """
 
-import os
 import zipfile
 import urllib.request
 from pathlib import Path
@@ -37,7 +36,8 @@ def fetch_movielens(version: str = DEFAULT_VERSION, force: bool = False) -> Path
     """
     if version not in MOVIELENS_URLS:
         raise ValueError(
-            f"Unknown version: {version}. Available: {list(MOVIELENS_URLS.keys())}")
+            f"Unknown version: {version}. Available: {list(MOVIELENS_URLS.keys())}"
+        )
 
     dataset_dir = get_dataset_dir()
     dataset_dir.mkdir(parents=True, exist_ok=True)
@@ -74,8 +74,7 @@ if __name__ == "__main__":
         choices=list(MOVIELENS_URLS.keys()),
         help="Dataset version",
     )
-    parser.add_argument("--force", action="store_true",
-                        help="Force re-download")
+    parser.add_argument("--force", action="store_true", help="Force re-download")
     args = parser.parse_args()
 
     fetch_movielens(version=args.version, force=args.force)

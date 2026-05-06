@@ -66,8 +66,7 @@ def generate_evaluation_dataset(
         desc="the quality of the headline",
         scale="0 is don't like, 1 is like, the scale is either 0 or 1",
     )
-    eval.add("$.headline", None, types.View(
-        views=["$.headline"]), QualityRubric)
+    eval.add("$.headline", None, types.View(views=["$.headline"]), QualityRubric)
 
     evaluation_dataset = eval.apply(sentiments, seed=seed)
     return evaluation_dataset
@@ -87,14 +86,10 @@ def apply_persona_evaluation_to_dataset(
 
 
 def generate_personas() -> exp_types.Personas:
-    positive_persona = exp_types.PersonaRanking(
-        positive=1, negative=0, neutral=0)
-    negative_persona = exp_types.PersonaRanking(
-        positive=0, negative=1, neutral=0)
-    neutral_persona = exp_types.PersonaRanking(
-        positive=0, negative=0, neutral=1)
-    extreme_persona = exp_types.PersonaRanking(
-        positive=1, negative=1, neutral=0)
+    positive_persona = exp_types.PersonaRanking(positive=1, negative=0, neutral=0)
+    negative_persona = exp_types.PersonaRanking(positive=0, negative=1, neutral=0)
+    neutral_persona = exp_types.PersonaRanking(positive=0, negative=0, neutral=1)
+    extreme_persona = exp_types.PersonaRanking(positive=1, negative=1, neutral=0)
     equal_persona = exp_types.PersonaRanking(positive=1, negative=1, neutral=1)
 
     return exp_types.Personas(

@@ -6,8 +6,8 @@ import dspy
 import pydantic
 from collections.abc import Callable
 
-T = TypeVar('T', bound=pydantic.BaseModel)
-Z = TypeVar('Z', bound=pydantic.BaseModel)
+T = TypeVar("T", bound=pydantic.BaseModel)
+Z = TypeVar("Z", bound=pydantic.BaseModel)
 type GetScoreFromDastasetFunction = Callable[[Z], int | float]
 type GetEvaluationCriteria = Callable[[Z], types.Criteria]
 

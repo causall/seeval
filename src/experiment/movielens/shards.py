@@ -4,9 +4,9 @@ Shards are JSONL files, one record per line, containing only the per-example
 payload (`input` + `scores`). The shared `criteria` is stored once in the
 manifest to keep shard size small and to avoid repeated JSON on every line.
 """
+
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
@@ -19,12 +19,14 @@ import seevals.data_types as types
 
 class ExampleRecord(pydantic.BaseModel):
     """One example's serializable payload. Criteria lives in the manifest."""
+
     input: dict
     scores: List[types.ScoredRubric] = pydantic.Field(default_factory=list)
 
 
 class ShardManifest(pydantic.BaseModel):
     """Manifest describing a produced shard directory."""
+
     schema_version: int = 1
     criteria: types.Criteria
     seed: int
@@ -45,7 +47,12 @@ def _example_to_record(ex: dspy.Example) -> ExampleRecord:
     raw_scores = data.get("scores") or []
     # eval_data_to_examples stores scores as [ [ScoredRubric, ...] ]
     flat: List[types.ScoredRubric] = []
-    if raw_scores and isinstance(raw_scores, list) and raw_scores and isinstance(raw_scores[0], list):
+    if (
+        raw_scores
+        and isinstance(raw_scores, list)
+        and raw_scores
+        and isinstance(raw_scores[0], list)
+    ):
         for inner in raw_scores:
             for s in inner:
                 flat.append(_coerce_scored_rubric(s))
