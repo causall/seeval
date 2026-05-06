@@ -1,0 +1,7 @@
+{
+  "seed": 43,
+  "num_runs": 10000,
+  "valid_movie_count": 50,
+  "num_users": 5,
+  "output_file": "10000_run.jsonl"
+}

@@ -27,6 +27,17 @@ dependencies = [
   "pandas",
 ]
 
+[project.optional-dependencies]
+analysis = [
+  "matplotlib",
+  "seaborn",
+  "scipy",
+  "tiktoken",
+]
+
+[project.scripts]
+seeval = "cli.main:main"
+
 [project.urls]
 Source = "https://github.com/causall/seevals"
 

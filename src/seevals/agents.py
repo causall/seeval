@@ -2,7 +2,7 @@ import dspy
 import pydantic
 from dataclasses import dataclass
 from pydantic import Field
-from typing import Sequence, Annotated, Unpack, List, Tuple, TypedDict, Type, TypeVar, Generic, Callable
+from typing import Optional, Sequence, Annotated, Unpack, List, Tuple, TypedDict, Type, TypeVar, Generic, Callable
 from dspy import InputField, OutputField
 import numpy as np
 from . import data_types as types
@@ -149,8 +149,8 @@ class SemanticSignature[V](dspy.Signature):
     criteria: types.Criteria = InputField(
         description="The criteria for grading")
     input: V = InputField(description="The input to be graded")
-    score: float = OutputField(
-        description="The score of how the input meets the criteria")
+    scores: List[List[types.ScoredRubric]] = OutputField(
+        description="The scores of the applied criteria in the order of the criteria")
 
 
 class ContrastiveSignature[V, O](dspy.Signature):
@@ -186,26 +186,35 @@ C = TypeVar('C')
 
 
 class GradingResult(pydantic.BaseModel):
-    score: float
+    scores: List[types.ScoredRubric]
 
 
 I = TypeVar('I', bound='pydantic.BaseModel')
 
 
 class GraderGenerationModule(dspy.Module, Generic[I]):
-    def __init__(self, input_type: Type[I]):
-        self.grader = dspy.ChainOfThought(
-            SemanticSignature[GradingInput[input_type]])
+    def __init__(self, input_type: Type[I], extra_instructions: Optional[str] = None):
+        semantic_signature = SemanticSignature[GradingInput[input_type]]
+        if extra_instructions:
+            semantic_signature = semantic_signature.with_instructions(
+                extra_instructions)
+        self.grader = dspy.ChainOfThought(semantic_signature)
 
+    """
     def forward(self, input: GradingInput[I]) -> dspy.Prediction:
         return self.grader(**input)
+    """
+
+    def forward(self, criteria: types.Criteria, input: I) -> dspy.Prediction:
+        grading_input = GradingInput[I](criteria=criteria, input=input)
+        return self.grader(**grading_input)
 
     def get_value(self, prediction: dspy.Prediction) -> GradingResult:
-        return prediction.score
+        return prediction.scores
 
 
-def make_semantic_grader(InputType: Type[I]) -> GraderGenerationModule[I]:
-    return GraderGenerationModule(InputType)
+def make_semantic_grader(InputType: Type[I], extra_instructions: Optional[str] = None) -> GraderGenerationModule[I]:
+    return GraderGenerationModule(InputType, extra_instructions)
 
 
 class GraderContrastiveModule(dspy.Module, Generic[I]):

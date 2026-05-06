@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "rubrics": {
+      "type": "array",
+      "items": {
+        "title": "Rubric",
+        "description": "The rubrics used for grading the content",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "The id of the rubric"
+          },
+          "ge": {
+            "type": "number",
+            "description": "The minimum score for the metric"
+          },
+          "le": {
+            "type": "number",
+            "description": "The maximum score for the metric"
+          },
+          "desc": {
+            "type": "string",
+            "description": "The description of the metric"
+          },
+          "scale": {
+            "type": "string",
+            "description": "The scale of the metric"
+          },
+          "instructions": {
+            "type": "string",
+            "description": "The json path for how the rubric should be applied either individually to the whole item or for each item in an array"
+          }
+        },
+        "required": [
+          "id",
+          "ge",
+          "le",
+          "desc",
+          "scale"
+        ]
+      }
+    }
+  }
+}

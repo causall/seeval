@@ -30,6 +30,8 @@ class ResponseData(pydantic.BaseModel, Generic[T]):
 
 
 class Rubric(pydantic.BaseModel):
+    id: int = pydantic.Field(description="The id of the rubric")
+    title: Optional[str] = pydantic.Field(description="The title of the rubric", default=None)
     ge: float = pydantic.Field(
         default=0.0, description="The minimum score", ge=0.0)
     le: float = pydantic.Field(
@@ -38,13 +40,35 @@ class Rubric(pydantic.BaseModel):
         default="", description="The description of the metric")
     scale: Optional[str] = pydantic.Field(
         default=None, description="The scale of metric")
+    instructions: str = pydantic.Field(
+        default="", description="The json path for how the rubric should be applied either individually to the whole item or for each item in an array")
 
 
 class Criteria(pydantic.BaseModel):
     rubrics: List[Rubric] = dspy.InputField(
         description="The rubrics used for grading the content")
+    """
     max_total_score: float = pydantic.Field(
         default=0.0, description="The sum of the rubric scores, but that must not exceed the maximum score")
+    """
+
+
+class DatumCriteria(pydantic.BaseModel):
+    rubric: Rubric
+    json_path: str = ""
+    score: float
+
+
+class DataCriteria(pydantic.BaseModel):
+    rubrics: List[DatumCriteria]
+
+
+class ScoredRubric(pydantic.BaseModel):
+    rubric_id: int = pydantic.Field(description="The id of the rubric")
+    score: float = pydantic.Field(
+        description="The score of the rubric according to the rubric's criteria")
+    json_path: str = pydantic.Field(
+        description="The specific json path for the rubric's application")
 
 
 class SampleCriteria(pydantic.BaseModel):
@@ -116,11 +140,22 @@ class EvalItemConfig(pydantic.BaseModel):
         default=None, description="The rubric for the evaluation")
 
 
+class EvalInternalConfig(pydantic.BaseModel):
+    path: str = pydantic.Field(
+        default="", description="The json path for the evaluation")
+    eval_item_config: EvalItemConfig = pydantic.Field(
+        default=None, description="The configuration for the evaluation")
+
+
+class EvalInternalConfigList(pydantic.RootModel):
+    root: List[EvalInternalConfig]
+
+
 class EvalConfig(pydantic.BaseModel):
     seed: int = pydantic.Field(
         default=42, description="The seed for the random number generator")
-    config: Dict[str, EvalItemConfig] = pydantic.Field(
-        default={}, description="The configuration for the evaluation")
+    config: EvalInternalConfigList = pydantic.Field(
+        default=[], description="The configuration for the evaluation")
     path_exists_cache: Dict[str, bool] = pydantic.Field(
         default={}, description="The cache for the path existence")
     class_type: Type[Z] = pydantic.Field(
@@ -136,17 +171,18 @@ class EvalConfig(pydantic.BaseModel):
         value = ""
         dataset = []
         count = 0
-        for instance in instances[0:2]:
+        for instance in instances:
             data: EvalData[Z] = []
             try:
                 instance_data = instance.model_dump()
-                for path, cfg in self.config.items():
-                    tracking_path = path
-                    jsonpath_expr = jp.parse(path)
+                for config in self.config:
+                    tracking_path = config.path
+                    cfg = config.eval_item_config
+                    jsonpath_expr = jp.parse(tracking_path)
                     matches = jsonpath_expr.find(instance_data)
                     if len(matches) != 1:
                         raise ValueError(
-                            f"Expected 1 match for path {path} but got {len(matches)}, {matches}")
+                            f"Expected 1 match for path {tracking_path} but got {len(matches)}, {matches}")
                     items = []
                     value = matches[0].value
                     if cfg.sample is not None:
@@ -157,13 +193,13 @@ class EvalConfig(pydantic.BaseModel):
                         for i, v in enumerate(values):
                             value = v
                             items.append(EvalItem(
-                                id=f"{path}[{i}]",
+                                id=f"{tracking_path}[{i}]",
                                 sample=cfg.sample,
                                 view=cfg.view,
                                 data=v))
                     else:
                         items.append(EvalItem(
-                            id=path,
+                            id=tracking_path,
                             sample=None,
                             view=cfg.view,
                             data=value))
@@ -197,11 +233,14 @@ class EvalConfig(pydantic.BaseModel):
         for v in view.views:
             self.path_exists_cache[v] = True
 
-        self.config[path] = EvalItemConfig(
-            sample=sample,
-            view=view,
-            rubric=rubric
-        )
+        self.config.append(EvalInternalConfig(
+            path=path,
+            eval_item_config=EvalItemConfig(
+                sample=sample,
+                view=view,
+                rubric=rubric
+            )
+        ))
         return self
 
 
