@@ -1,30 +1,15 @@
 from attr import dataclass
-from datetime import datetime
 import dspy
 import pydantic
-from typing import List, Literal, Optional
+from typing import List, Literal
+
+import seevals.data_types as types
 
 
 class PersonaRanking(pydantic.BaseModel):
     positive: int
     negative: int
     neutral: int
-
-
-class ExperimentConfig(pydantic.BaseModel):
-    model: str = "openai/bedrock-sonnet-37"
-    api_base: str = "http://localhost:4000"
-    api_key: str = "noop"
-    seed: int = 42
-    num_headlines: int = 100
-
-
-class ExperimentInstance(pydantic.BaseModel):
-    persona: PersonaRanking
-    split_ratio: float = 0.8
-    noise: float = 0.1
-    seed: int = 42
-    optimization: Literal["light", "medium", "heavy"] = "light"
 
 
 class Personas(pydantic.BaseModel):
@@ -35,10 +20,8 @@ class Personas(pydantic.BaseModel):
     equal: PersonaRanking
 
 
-@dataclass
-class DatasetSplit:
-    train: List[dspy.Example]
-    test: List[dspy.Example]
+class SentimentMetadata(pydantic.BaseModel):
+    num_headlines: int = 100
 
 
 class SentimentGenerationArgs(pydantic.BaseModel):
@@ -71,33 +54,19 @@ class SentimentHeadlineOutput(pydantic.RootModel[List[SentimentHeadline]]):
     root: List[SentimentHeadline]
 
 
-# Storage models
+@dataclass
+class SplitDatasets:
+    """Train / val / test slices of the persona-scored evaluation dataset."""
+
+    train: List[types.EvalData[SentimentHeadline]]
+    validation: List[types.EvalData[SentimentHeadline]]
+    test: List[types.EvalData[SentimentHeadline]]
 
 
-class ExperimentResult(pydantic.BaseModel):
-    """Result of a single experiment instance run"""
+@dataclass
+class SplitExamples:
+    """Same splits, materialized as scored, input-filtered dspy.Examples."""
 
-    persona_name: str
-    instance: ExperimentInstance
-    baseline_score: float
-    optimized_score: float
-    optimized_program_path: str
-    timestamp: datetime
-
-
-class ExperimentRunManifest(pydantic.BaseModel):
-    """Manifest for an entire experiment run"""
-
-    run_id: str
-    config: ExperimentConfig
-    noise_params: List[float]
-    created_at: datetime
-    completed_at: Optional[datetime] = None
-    persona_names: List[str]
-
-
-class ExperimentRunResults(pydantic.BaseModel):
-    """All results from an experiment run"""
-
-    run_id: str
-    results: List[ExperimentResult]
+    train: List[dspy.Example]
+    validation: List[dspy.Example]
+    test: List[dspy.Example]

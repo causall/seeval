@@ -1,20 +1,26 @@
-from datetime import datetime
-import json
 import argparse
+import json
+from datetime import datetime
 from typing import List
+
 import dspy
-import experiment.sentiment.data_types as exp_types
-import experiment.sentiment.data as exp_data
+
+from experiment.data_types import ExperimentConfig, ExperimentResult
+from experiment.sentiment import data as exp_data
+from experiment.sentiment import data_types as exp_types
 from experiment.sentiment.core import (
-    setup_experiment_lm,
-    run_experiment,
     build_experiment_instances,
+    build_split_datasets,
+    build_split_examples,
+    get_evaluation_criteria,
+    run_gepa_experiment,
+    setup_experiment_lm,
 )
 from experiment.sentiment.storage import (
-    create_experiment_run,
-    save_optimized_program,
-    save_experiment_result,
     complete_experiment_run,
+    create_experiment_run,
+    save_experiment_result,
+    save_optimized_program,
 )
 
 
@@ -23,7 +29,6 @@ def print_optimized_instructions(filepath: str):
     with open(filepath, "r") as f:
         data = json.load(f)
 
-    # Extract instructions from the nested structure
     instructions = (
         data.get("grader.predict", {}).get("signature", {}).get("instructions")
     )
@@ -38,42 +43,16 @@ def print_optimized_instructions(filepath: str):
         print(f"No instructions found in {filepath}")
 
 
-def generate_experiment_instances(evaluation_dataset, noise_params: List[float]):
-
-    personas = exp_data.generate_personas()
-    optimization = ["light"]
-
-    pexp_instances = build_experiment_instances(
-        evaluation_dataset, personas.positive, noise_params, optimization
-    )
-    nexp_instances = build_experiment_instances(
-        evaluation_dataset, personas.negative, noise_params, optimization
-    )
-    nex_instances = build_experiment_instances(
-        evaluation_dataset, personas.neutral, noise_params, optimization
-    )
-    ex_instances = build_experiment_instances(
-        evaluation_dataset, personas.extreme, noise_params, optimization
-    )
-    eq_instances = build_experiment_instances(
-        evaluation_dataset, personas.equal, noise_params, optimization
-    )
-    return {
-        "positive": pexp_instances,
-        "negative": nexp_instances,
-        "neutral": nex_instances,
-        "extreme": ex_instances,
-        "equal": eq_instances,
-    }
-
-
 def main():
     try:
-        noise_params = [0.0, 0.1, 0.2, 0.3]
-        experiment_config = exp_types.ExperimentConfig()
-        experiment_config.model = "openai/gemma-3-27b"
-        experiment_config.model = "openai/llama4-maverick"
-        # setup the experiment lm
+        noise_params: List[float] = [0.0, 0.1, 0.2, 0.3]
+        optimizations = ["light"]
+
+        experiment_config = ExperimentConfig[exp_types.SentimentMetadata](
+            model="openai/llama4-maverick",
+            metadata=exp_types.SentimentMetadata(num_headlines=100),
+        )
+
         lm = setup_experiment_lm(
             experiment_config.model,
             experiment_config.api_base,
@@ -81,49 +60,48 @@ def main():
         )
         dspy.configure(lm=lm)
 
-        # generate the evaluation dataset
         evaluation_dataset = exp_data.generate_evaluation_dataset(
-            lm, experiment_config.num_headlines, experiment_config.seed
+            lm,
+            experiment_config.metadata.num_headlines,
+            experiment_config.seed,
         )
 
-        # generate test evaluation dataset
-        test_evaluation_dataset = exp_data.generate_evaluation_dataset(
-            lm, experiment_config.num_headlines, experiment_config.seed + 9
-        )
+        personas = exp_data.generate_personas()
+        persona_names = list(exp_types.Personas.model_fields.keys())
 
-        # generate the personas for the experiment
-
-        # build the experiment instances for the positive persona
-
-        experiment_instances = generate_experiment_instances(
-            evaluation_dataset, noise_params
-        )
-
-        # Create experiment run and save manifest
         run_id = create_experiment_run(
-            experiment_config, noise_params, list(experiment_instances.keys())
+            experiment_config, noise_params, persona_names
         )
         print(f"Started experiment run: {run_id}")
 
-        for persona, instances in experiment_instances.items():
+        criteria = get_evaluation_criteria()
+
+        instances = build_experiment_instances(
+            noise_params, optimizations, seed=experiment_config.seed
+        )
+
+        for persona_name in persona_names:
+            persona = getattr(personas, persona_name)
             for instance in instances:
-                optimized_program, teleprompter, baseline_score, optimized_score = (
-                    run_experiment(
-                        lm, evaluation_dataset, test_evaluation_dataset, instance
-                    )
+                splits = build_split_datasets(
+                    evaluation_dataset, persona, instance
+                )
+                examples = build_split_examples(splits, criteria, instance.seed)
+
+                optimized_program, _teleprompter, baseline_score, optimized_score = (
+                    run_gepa_experiment(lm, examples, criteria, instance.optimization)
                 )
                 print(
-                    f"Persona: {persona}, Baseline score: {baseline_score}, Optimized score: {optimized_score}"
+                    f"Persona: {persona_name}, noise={instance.noise}, "
+                    f"baseline={baseline_score}, optimized={optimized_score}"
                 )
 
-                # Save optimized program
                 program_path = save_optimized_program(
-                    optimized_program, run_id, persona, instance
+                    optimized_program, run_id, persona_name, instance
                 )
 
-                # Save experiment result
-                result = exp_types.ExperimentResult(
-                    persona_name=persona,
+                result = ExperimentResult(
+                    label=persona_name,
                     instance=instance,
                     baseline_score=baseline_score,
                     optimized_score=optimized_score,
@@ -132,7 +110,6 @@ def main():
                 )
                 save_experiment_result(result, run_id)
 
-        # Mark run as completed
         complete_experiment_run(run_id)
         print(f"Completed experiment run: {run_id}")
 
