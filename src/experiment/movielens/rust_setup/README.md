@@ -30,7 +30,7 @@ vectors (linear two-pointer merge), keep only the tuples whose
 intersection size exceeds `valid_movie_count`, sort the survivors by
 intersection size, and write them out.
 
-Rewriting it in Rust drops a full pipeline cold-start from minutes
+Rewriting it in Rust drops a full pipeline from minutes
 (Python) to seconds (Rust), and the bincode cache makes warm runs
 near-instant.
 
@@ -60,6 +60,7 @@ cargo run --manifest-path src/experiment/movielens/rust_setup/Cargo.toml -- \
 ```
 
 Writes:
+
 - `src/experiment/movielens/rust_output.jsonl`
 - `src/experiment/movielens/rust_output_config.json`
 
@@ -78,13 +79,13 @@ has to be non-empty) — handy for plumbing tests.
 
 ## CLI flags
 
-| Flag | Default | Meaning |
-|---|---|---|
-| `--setup` | _required_ | Output JSONL path; config is written next to it as `<stem>_config.json`. |
-| `--num-users` | `5` | Cohort size `N`. Must be `≤` filtered user count. |
-| `--num-runs` | `10000` | Monte Carlo trials. Survivors ≤ this. |
-| `--valid-movie-count` | `50` | Strict-greater-than threshold for keeping a cohort. |
-| `--seed` | `43` | `StdRng` seed; fully reproducible output for fixed inputs. |
+| Flag                  | Default    | Meaning                                                                  |
+| --------------------- | ---------- | ------------------------------------------------------------------------ |
+| `--setup`             | _required_ | Output JSONL path; config is written next to it as `<stem>_config.json`. |
+| `--num-users`         | `5`        | Cohort size `N`. Must be `≤` filtered user count.                        |
+| `--num-runs`          | `10000`    | Monte Carlo trials. Survivors ≤ this.                                    |
+| `--valid-movie-count` | `50`       | Strict-greater-than threshold for keeping a cohort.                      |
+| `--seed`              | `43`       | `StdRng` seed; fully reproducible output for fixed inputs.               |
 
 ## Cache
 
