@@ -1,25 +1,11 @@
 from datetime import datetime
-from itertools import product
-from attr import dataclass
-from dspy.utils.callback import BaseCallback
-import pdb
-import pydantic
 import json
 import argparse
-from typing import Literal, TypedDict, Type, Tuple, Dict, Iterable, ParamSpec, TypeVar, Generic, List, Callable, Optional, Protocol
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import random
+from typing import List
 import dspy
-import seevals.utils as utils
-import seevals.agent_util as agent_util
-import seevals.agents as agents
-from seevals.execute import run_parallel
-import seevals.data_types as types
-from seevals.agents import ScenarioArgs
-import experiment.sentiment.utils as exp_utils
 import experiment.sentiment.data_types as exp_types
 import experiment.sentiment.data as exp_data
-from experiment.sentiment.core import get_evaluation_criteria, setup_experiment_lm, run_experiment, build_experiment_instances
+from experiment.sentiment.core import setup_experiment_lm, run_experiment, build_experiment_instances
 from experiment.sentiment.storage import (
     create_experiment_run,
     save_optimized_program,

@@ -1,8 +1,6 @@
 import dspy
 import pydantic
-from dataclasses import dataclass
-from pydantic import Field
-from typing import Optional, Sequence, Annotated, Unpack, List, Tuple, TypedDict, Type, TypeVar, Generic, Callable
+from typing import Optional, Sequence, Annotated, List, Tuple, TypedDict, Type, TypeVar, Generic
 from dspy import InputField, OutputField
 import numpy as np
 from . import data_types as types
